@@ -1,0 +1,496 @@
+{
+  "$defs": {
+    "AgentMetadata": {
+      "description": "Agent metadata information.",
+      "properties": {
+        "name": {
+          "description": "Agent name",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "default": "1.0.0",
+          "description": "Agent version",
+          "title": "Version",
+          "type": "string"
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Agent owner/creator",
+          "title": "Owner"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Agent description",
+          "title": "Description"
+        },
+        "tags": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Agent tags for categorization",
+          "title": "Tags"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "AgentMetadata",
+      "type": "object"
+    },
+    "KnowledgeConfig": {
+      "description": "Knowledge base configuration.",
+      "properties": {
+        "provider": {
+          "$ref": "#/$defs/VectorProvider",
+          "description": "Vector database provider"
+        },
+        "credentials_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Environment variable for credentials",
+          "title": "Credentials Key"
+        },
+        "collection_name": {
+          "description": "Collection/index name",
+          "title": "Collection Name",
+          "type": "string"
+        },
+        "embedding_model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "text-embedding-ada-002",
+          "description": "Embedding model",
+          "title": "Embedding Model"
+        },
+        "search_config": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Search configuration (top_k, score_threshold, etc.)",
+          "title": "Search Config"
+        }
+      },
+      "required": [
+        "provider",
+        "collection_name"
+      ],
+      "title": "KnowledgeConfig",
+      "type": "object"
+    },
+    "LLMProvider": {
+      "description": "Supported LLM providers.",
+      "enum": [
+        "openai",
+        "openai_compatible",
+        "aws_bedrock"
+      ],
+      "title": "LLMProvider",
+      "type": "string"
+    },
+    "MemoryConfig": {
+      "description": "Memory configuration for the agent.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/MemoryType",
+          "description": "Type of memory to use"
+        },
+        "config": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Memory-specific configuration",
+          "title": "Config"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "MemoryConfig",
+      "type": "object"
+    },
+    "MemoryType": {
+      "description": "Supported memory types.",
+      "enum": [
+        "conversation_buffer_window"
+      ],
+      "title": "MemoryType",
+      "type": "string"
+    },
+    "ModelConfig": {
+      "description": "LLM model configuration.",
+      "properties": {
+        "provider": {
+          "$ref": "#/$defs/LLMProvider",
+          "description": "LLM provider"
+        },
+        "name": {
+          "description": "Model name (e.g., 'gpt-4', 'claude-3-5-sonnet')",
+          "title": "Name",
+          "type": "string"
+        },
+        "credentials_key": {
+          "description": "Environment variable name for API credentials",
+          "title": "Credentials Key",
+          "type": "string"
+        },
+        "base_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Base URL for OpenAI-compatible APIs (required for openai_compatible)",
+          "title": "Base Url"
+        },
+        "region": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "AWS region (required for aws_bedrock)",
+          "title": "Region"
+        },
+        "parameters": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Model-specific parameters (temperature, max_tokens, etc.)",
+          "title": "Parameters"
+        }
+      },
+      "required": [
+        "provider",
+        "name",
+        "credentials_key"
+      ],
+      "title": "ModelConfig",
+      "type": "object"
+    },
+    "PromptConfig": {
+      "description": "Prompt configuration for the agent.",
+      "properties": {
+        "system_prompt": {
+          "description": "System prompt for the agent",
+          "minLength": 1,
+          "title": "System Prompt",
+          "type": "string"
+        },
+        "react_template": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Custom ReAct template (uses default if not provided)",
+          "title": "React Template"
+        }
+      },
+      "required": [
+        "system_prompt"
+      ],
+      "title": "PromptConfig",
+      "type": "object"
+    },
+    "ToolConfig": {
+      "description": "Tool configuration.",
+      "properties": {
+        "name": {
+          "description": "Tool name",
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "description": {
+          "description": "Tool description",
+          "title": "Description",
+          "type": "string"
+        },
+        "type": {
+          "description": "Tool type",
+          "enum": [
+            "api",
+            "function",
+            "builtin"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "endpoint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "API endpoint URL",
+          "title": "Endpoint"
+        },
+        "method": {
+          "anyOf": [
+            {
+              "enum": [
+                "GET",
+                "POST",
+                "PUT",
+                "DELETE"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "POST",
+          "description": "HTTP method",
+          "title": "Method"
+        },
+        "headers": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "HTTP headers",
+          "title": "Headers"
+        },
+        "module": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Python module path",
+          "title": "Module"
+        },
+        "function": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Function name",
+          "title": "Function"
+        },
+        "parameters": {
+          "description": "Tool parameters",
+          "items": {
+            "$ref": "#/$defs/ToolParameter"
+          },
+          "title": "Parameters",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "description",
+        "type"
+      ],
+      "title": "ToolConfig",
+      "type": "object"
+    },
+    "ToolParameter": {
+      "description": "Tool parameter definition.",
+      "properties": {
+        "name": {
+          "description": "Parameter name",
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "description": "Parameter type (string, integer, boolean, etc.)",
+          "title": "Type",
+          "type": "string"
+        },
+        "description": {
+          "description": "Parameter description",
+          "title": "Description",
+          "type": "string"
+        },
+        "required": {
+          "default": true,
+          "description": "Whether parameter is required",
+          "title": "Required",
+          "type": "boolean"
+        },
+        "default": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Default value if not required",
+          "title": "Default"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "description"
+      ],
+      "title": "ToolParameter",
+      "type": "object"
+    },
+    "VectorProvider": {
+      "description": "Supported vector database providers.",
+      "enum": [
+        "faiss",
+        "milvus"
+      ],
+      "title": "VectorProvider",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Complete agent configuration schema.",
+  "properties": {
+    "metadata": {
+      "$ref": "#/$defs/AgentMetadata",
+      "description": "Agent metadata"
+    },
+    "agent_type": {
+      "const": "react",
+      "default": "react",
+      "description": "Agent type (fixed as 'react' for v1.0)",
+      "title": "Agent Type",
+      "type": "string"
+    },
+    "model": {
+      "$ref": "#/$defs/ModelConfig",
+      "description": "LLM model configuration"
+    },
+    "memory": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MemoryConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Memory configuration"
+    },
+    "tools": {
+      "description": "Available tools",
+      "items": {
+        "$ref": "#/$defs/ToolConfig"
+      },
+      "title": "Tools",
+      "type": "array"
+    },
+    "knowledge": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/KnowledgeConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Knowledge base configuration"
+    },
+    "prompt": {
+      "$ref": "#/$defs/PromptConfig",
+      "description": "Prompt configuration"
+    }
+  },
+  "required": [
+    "metadata",
+    "model",
+    "prompt"
+  ],
+  "title": "AgentConfig",
+  "type": "object"
+}

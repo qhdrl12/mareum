@@ -1,0 +1,32 @@
+memory:
+  config:
+    k: 10
+  type: conversation_buffer_window
+metadata:
+  description: A ReAct agent for task automation
+  name: my-react-agent
+  owner: Your Name
+  tags:
+  - react
+  - automation
+  version: 1.0.0
+model:
+  credentials_key: OPENAI_API_KEY
+  name: gpt-4
+  parameters:
+    max_tokens: 2000
+    temperature: 0.7
+    top_p: 1.0
+  provider: openai
+prompt:
+  system_prompt: You are a helpful AI assistant that uses tools to solve problems
+    step by step.
+tools:
+- description: Search the web for information
+  name: web_search
+  parameters:
+  - description: Search query
+    name: query
+    required: true
+    type: string
+  type: builtin
