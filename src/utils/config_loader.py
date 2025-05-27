@@ -5,12 +5,10 @@ Configuration file loader with environment variable substitution and validation.
 import os
 import re
 import yaml
-import json
 from typing import Any, Dict, Optional, Union
 from pathlib import Path
 
-from ..schemas.agent_config import AgentConfig
-from .schema_validator import SchemaValidator, ValidationResult
+from ..core.config_parser import ConfigParser
 
 
 class ConfigLoader:
@@ -24,7 +22,7 @@ class ConfigLoader:
         validate: bool = True,
         substitute_env_vars: bool = True,
         defaults: Optional[Dict[str, Any]] = None
-    ) -> AgentConfig:
+    ) -> Dict[str, Any]:
         """
         Load and parse configuration file.
         
@@ -35,13 +33,12 @@ class ConfigLoader:
             defaults: Default values to merge with loaded config
             
         Returns:
-            AgentConfig instance
+            Configuration dictionary
             
         Raises:
             FileNotFoundError: If file doesn't exist
             ValueError: If validation fails
             yaml.YAMLError: If YAML parsing fails
-            json.JSONDecodeError: If JSON parsing fails
         """
         file_path = Path(file_path)
         
@@ -59,15 +56,16 @@ class ConfigLoader:
         if defaults:
             raw_data = ConfigLoader._merge_defaults(raw_data, defaults)
         
-        # Validate if requested
+        # Validate if requested using ConfigParser
         if validate:
-            result = SchemaValidator.validate_dict(raw_data)
-            if not result.is_valid:
-                error_msg = f"Configuration validation failed:\n{result.get_detailed_report()}"
-                raise ValueError(error_msg)
+            try:
+                # Use ConfigParser for validation with schema.json
+                parser = ConfigParser(schema_path="schema.json")
+                parser.validate_configuration(raw_data)
+            except Exception as e:
+                raise ValueError(f"Configuration validation failed: {e}")
         
-        # Create AgentConfig instance
-        return AgentConfig(**raw_data)
+        return raw_data
     
     @staticmethod
     def load_config_dict(
@@ -79,6 +77,8 @@ class ConfigLoader:
         """
         Load configuration as dictionary without creating AgentConfig instance.
         
+        This method is now identical to load_config for simplicity.
+        
         Args:
             file_path: Path to configuration file
             validate: Whether to validate the configuration
@@ -88,41 +88,21 @@ class ConfigLoader:
         Returns:
             Configuration dictionary
         """
-        file_path = Path(file_path)
-        
-        if not file_path.exists():
-            raise FileNotFoundError(f"Configuration file not found: {file_path}")
-        
-        # Load raw data
-        raw_data = ConfigLoader._load_raw_data(file_path)
-        
-        # Substitute environment variables
-        if substitute_env_vars:
-            raw_data = ConfigLoader._substitute_env_vars(raw_data)
-        
-        # Apply defaults
-        if defaults:
-            raw_data = ConfigLoader._merge_defaults(raw_data, defaults)
-        
-        # Validate if requested
-        if validate:
-            result = SchemaValidator.validate_dict(raw_data)
-            if not result.is_valid:
-                error_msg = f"Configuration validation failed:\n{result.get_detailed_report()}"
-                raise ValueError(error_msg)
-        
-        return raw_data
+        return ConfigLoader.load_config(
+            file_path=file_path,
+            validate=validate,
+            substitute_env_vars=substitute_env_vars,
+            defaults=defaults
+        )
     
     @staticmethod
     def _load_raw_data(file_path: Path) -> Dict[str, Any]:
-        """Load raw data from file."""
+        """Load raw data from YAML file."""
+        if file_path.suffix.lower() not in ['.yaml', '.yml']:
+            raise ValueError(f"Only YAML files are supported. Got: {file_path.suffix}")
+        
         with open(file_path, 'r', encoding='utf-8') as f:
-            if file_path.suffix.lower() in ['.yaml', '.yml']:
-                return yaml.safe_load(f) or {}
-            elif file_path.suffix.lower() == '.json':
-                return json.load(f)
-            else:
-                raise ValueError(f"Unsupported file format: {file_path.suffix}")
+            return yaml.safe_load(f) or {}
     
     @staticmethod
     def _substitute_env_vars(data: Any) -> Any:
@@ -180,52 +160,43 @@ class ConfigLoader:
     
     @staticmethod
     def save_config(
-        config: Union[AgentConfig, Dict[str, Any]],
+        config: Dict[str, Any],
         file_path: Union[str, Path],
         format: str = "yaml"
     ) -> None:
         """
-        Save configuration to file.
+        Save configuration to YAML file.
         
         Args:
-            config: Configuration to save
+            config: Configuration dictionary to save
             file_path: Output file path
-            format: Output format ('yaml' or 'json')
+            format: Output format (only 'yaml' supported)
         """
-        file_path = Path(file_path)
+        if format != "yaml":
+            raise ValueError("Only YAML format is supported")
         
-        # Convert to dict if AgentConfig
-        if isinstance(config, AgentConfig):
-            data = config.model_dump()
-        else:
-            data = config
+        file_path = Path(file_path)
         
         # Ensure directory exists
         file_path.parent.mkdir(parents=True, exist_ok=True)
         
+        # Save as YAML
         with open(file_path, 'w', encoding='utf-8') as f:
-            if format.lower() == 'yaml':
-                yaml.dump(data, f, default_flow_style=False, allow_unicode=True, indent=2)
-            elif format.lower() == 'json':
-                json.dump(data, f, indent=2, ensure_ascii=False)
-            else:
-                raise ValueError(f"Unsupported format: {format}. Use 'yaml' or 'json'")
+            yaml.dump(config, f, default_flow_style=False, sort_keys=False, indent=2)
     
     @staticmethod
     def get_default_config() -> Dict[str, Any]:
         """
-        Get a default configuration template.
+        Get default configuration structure.
         
         Returns:
             Default configuration dictionary
         """
         return {
             "metadata": {
-                "name": "my-react-agent",
-                "description": "A ReAct agent for task automation",
-                "version": "1.0.0",
-                "owner": "Your Name",
-                "tags": ["react", "automation"]
+                "name": "default_agent",
+                "description": "A basic ReAct agent configuration",
+                "version": "1.0.0"
             },
             "model": {
                 "provider": "openai",
@@ -233,34 +204,19 @@ class ConfigLoader:
                 "credentials_key": "OPENAI_API_KEY",
                 "parameters": {
                     "temperature": 0.7,
-                    "max_tokens": 2000,
-                    "top_p": 1.0
+                    "max_tokens": 2000
                 }
             },
-            "tools": [
-                {
-                    "name": "web_search",
-                    "description": "Search the web for information",
-                    "type": "builtin",
-                    "parameters": [
-                        {
-                            "name": "query",
-                            "type": "string",
-                            "description": "Search query",
-                            "required": True
-                        }
-                    ]
-                }
-            ],
+            "prompt": {
+                "system_prompt": "You are a helpful AI assistant. Use the available tools to help answer questions and complete tasks."
+            },
             "memory": {
                 "type": "conversation_buffer_window",
                 "config": {
                     "k": 10
                 }
             },
-            "prompt": {
-                "system_prompt": "You are a helpful AI assistant that uses tools to solve problems step by step."
-            }
+            "tools": []
         }
     
     @staticmethod
@@ -272,4 +228,4 @@ class ConfigLoader:
             file_path: Path where to save the example config
         """
         config = ConfigLoader.get_default_config()
-        ConfigLoader.save_config(config, file_path, format="yaml") 
+        ConfigLoader.save_config(config, file_path) 

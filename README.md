@@ -27,13 +27,16 @@ This project provides a robust schema validation system that allows users to def
 │   ├── schemas/
 │   │   └── agent_config.py      # Pydantic models for configuration
 │   └── utils/
-│       ├── schema_validator.py  # Schema validation utilities
 │       └── config_loader.py     # Configuration loading utilities
+│   ├── core/
+│   │   └── config_parser.py     # YAML configuration parser with schema validation
 ├── examples/
 │   ├── example_agent.yaml       # Basic OpenAI example
 │   ├── vllm_agent.yaml         # vLLM/OpenAI-compatible example
 │   └── bedrock_agent.yaml      # AWS Bedrock Claude example
-└── test_schema.py              # Test suite
+└── tests/
+    ├── test_config_parser.py    # Unit tests for ConfigParser
+    └── test_integration.py      # Integration tests for the system
 ```
 
 ## 🛠️ Installation
@@ -130,30 +133,38 @@ knowledge:
 Run the comprehensive test suite:
 
 ```bash
-uv run python test_schema.py
+# Run all tests
+python -m pytest tests/ -v
+
+# Run only unit tests
+python -m pytest tests/test_config_parser.py -v
+
+# Run only integration tests
+python -m pytest tests/test_integration.py -v
 ```
 
-The test suite validates:
-- ✅ Schema validation for all example configurations
-- ✅ Configuration loading with environment variable substitution
-- ✅ JSON schema generation
-- ✅ Default configuration creation
+The test suite includes:
+- **Unit Tests (28 tests)**: ConfigParser functionality, YAML parsing, schema validation
+- **Integration Tests (12 tests)**: End-to-end configuration loading, environment variable substitution, provider-specific validation
+- ✅ All configuration files validated against schema.json
+- ✅ Environment variable substitution and default value handling
 - ✅ Provider-specific validation (OpenAI, vLLM, Bedrock)
+- ✅ Error handling and edge cases
 
 ## 🔧 Usage
 
 ### Validate Configuration
 ```python
-from src.utils.schema_validator import SchemaValidator
+from src.core.config_parser import ConfigParser
 
 # Validate a YAML file
-result = SchemaValidator.validate_file("my_agent.yaml")
-if result.is_valid:
+parser = ConfigParser(schema_path="schema.json")
+try:
+    config_data = parser.parse_from_file("my_agent.yaml")
+    parser.validate_configuration(config_data)
     print("✅ Configuration is valid!")
-else:
-    print("❌ Validation errors:")
-    for error in result.errors:
-        print(f"  - {error}")
+except Exception as e:
+    print(f"❌ Validation error: {e}")
 ```
 
 ### Load Configuration
@@ -162,17 +173,17 @@ from src.utils.config_loader import ConfigLoader
 
 # Load and parse configuration
 config = ConfigLoader.load_config("my_agent.yaml")
-print(f"Agent: {config.metadata.name}")
-print(f"Model: {config.model.provider.value}/{config.model.name}")
+print(f"Agent: {config['metadata']['name']}")
+print(f"Model: {config['model']['provider']}/{config['model']['name']}")
 ```
 
-### Generate JSON Schema
+### Use JSON Schema
 ```python
-from src.utils.schema_validator import SchemaValidator
+from src.core.config_parser import ConfigParser
 
-# Generate JSON schema for external tools
-schema = SchemaValidator.get_json_schema()
-SchemaValidator.save_json_schema("agent_schema.json")
+# Use existing JSON schema for validation
+parser = ConfigParser(schema_path="schema.json")
+config_data = parser.parse_from_file("my_agent.yaml")
 ```
 
 ## 🔑 Environment Variables
