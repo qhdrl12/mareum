@@ -1,0 +1,37 @@
+# Basic ReAct Agent Configuration
+metadata:
+  name: "basic-react-agent"
+  description: "A basic ReAct agent for task automation"
+  version: "1.0.0"
+  tags:
+    - "react"
+    - "automation"
+    - "basic"
+
+model:
+  provider: "openai"
+  name: "gpt-4"
+  credentials_key: "OPENAI_API_KEY"
+  parameters:
+    temperature: 0.7
+    max_tokens: 2000
+
+prompt:
+  system_prompt: |
+    You are a helpful AI assistant that uses tools to solve problems step by step.
+    Use the ReAct approach: think about what to do, take actions, and observe results.
+
+tools:
+  - name: "web_search"
+    type: "function"
+    description: "Search the web for information"
+    parameters:
+      - name: "query"
+        type: "string"
+        description: "Search query"
+        required: true
+
+memory:
+  type: "conversation_buffer_window"
+  config:
+    max_messages: 10

@@ -1,0 +1,74 @@
+# ReAct Agent Configuration Example (YAML)
+# This file demonstrates a valid configuration that passes schema validation
+
+metadata:
+  name: "customer-support-agent"
+  version: "1.2.0"
+  description: "AI agent for handling customer support inquiries"
+  tags:
+    - "customer-service"
+    - "support"
+    - "chatbot"
+
+model:
+  provider: "openai"
+  name: "gpt-4"
+  credentials_key: "OPENAI_API_KEY"
+  parameters:
+    temperature: 0.7
+    max_tokens: 1500
+
+prompt:
+  system_prompt: |
+    You are a helpful customer support agent. You should:
+    1. Be polite and professional
+    2. Provide accurate information
+    3. Ask clarifying questions when needed
+    4. Escalate complex issues appropriately
+
+tools:
+  - name: "search_knowledge_base"
+    type: "function"
+    description: "Search the company knowledge base for information"
+    parameters:
+      - name: "query"
+        type: "string"
+        description: "Search query"
+        required: true
+      - name: "max_results"
+        type: "integer"
+        description: "Maximum number of results"
+        required: false
+        default: 5
+  
+  - name: "create_ticket"
+    type: "function"
+    description: "Create a support ticket for complex issues"
+    parameters:
+      - name: "title"
+        type: "string"
+        description: "Ticket title"
+        required: true
+      - name: "description"
+        type: "string"
+        description: "Ticket description"
+        required: true
+      - name: "priority"
+        type: "string"
+        description: "Ticket priority"
+        required: true
+
+memory:
+  type: "conversation_buffer_window"
+  config:
+    max_messages: 20
+
+knowledge:
+  provider: "faiss"
+  collection_name: "support-knowledge-base"
+  embedding_model: "text-embedding-ada-002"
+  search_config:
+    top_k: 3
+    score_threshold: 0.8
+
+ 

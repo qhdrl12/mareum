@@ -1,0 +1,91 @@
+# Customer Support Agent Configuration Example
+metadata:
+  name: "customer-support-agent"
+  description: "AI agent for customer support automation"
+  version: "1.0.0"
+  tags:
+    - "customer-support"
+    - "automation"
+    - "react"
+
+model:
+  provider: "openai"
+  name: "gpt-4"
+  credentials_key: "OPENAI_API_KEY"
+  parameters:
+    temperature: 0.7
+    max_tokens: 2000
+
+prompt:
+  system_prompt: |
+    You are a helpful customer support AI assistant. Your role is to:
+    
+    1. Help customers with their questions and issues
+    2. Search the knowledge base for relevant information
+    3. Create support tickets when necessary
+    4. Provide accurate and helpful responses
+    
+    Always be polite, professional, and helpful. If you cannot solve an issue,
+    escalate it by creating a support ticket.
+    
+    Use the available tools to:
+    - Search the knowledge base for information
+    - Look up user information when needed
+    - Create tickets for complex issues
+    
+    Remember to think step by step and explain your reasoning.
+
+tools:
+  - name: "search_knowledge_base"
+    type: "function"
+    description: "Search the company knowledge base for information"
+    parameters:
+      - name: "query"
+        type: "string"
+        description: "Search query"
+        required: true
+      - name: "limit"
+        type: "integer"
+        description: "Maximum number of results"
+        required: false
+        default: 10
+
+  - name: "create_ticket"
+    type: "function"
+    description: "Create a support ticket"
+    parameters:
+      - name: "title"
+        type: "string"
+        description: "Ticket title"
+        required: true
+      - name: "description"
+        type: "string"
+        description: "Ticket description"
+        required: true
+      - name: "priority"
+        type: "string"
+        description: "Ticket priority"
+        required: false
+        default: "medium"
+
+  - name: "get_user_info"
+    type: "function"
+    description: "Get user information from CRM"
+    parameters:
+      - name: "user_id"
+        type: "string"
+        description: "User ID"
+        required: true
+
+memory:
+  type: "conversation_buffer_window"
+  config:
+    max_messages: 5
+
+knowledge:
+  provider: "faiss"
+  collection_name: "customer-support-kb"
+  embedding_model: "text-embedding-ada-002"
+  search_config:
+    top_k: 5
+    score_threshold: 0.7 
