@@ -1,0 +1,40 @@
+# Invalid Configuration Example (YAML)
+# This file demonstrates various validation errors
+
+metadata:
+  # Missing required 'name' field
+  version: "1.0.0"
+  description: "This config will fail validation"
+  tags: "should-be-array"  # Wrong type - should be array
+
+model:
+  provider: "invalid_provider"  # Not in enum list
+  name: "gpt-4"
+  # Missing required 'credentials_key' field
+  temperature: 3.0  # Out of range (max is 2)
+  max_tokens: 0     # Below minimum (min is 1)
+
+prompt:
+  # Missing required 'system' field
+  user_template: "User: {input}"
+
+tools:
+  - name: "tool1"
+    # Missing required 'type' field
+    description: "A tool without type"
+  
+  - name: ""  # Empty name (violates minLength)
+    type: "invalid_type"  # Not in enum list
+
+memory:
+  type: "invalid_memory_type"  # Not in enum list
+  max_messages: 0  # Below minimum (min is 1)
+
+knowledge:
+  provider: "unknown_provider"  # Not in enum list
+  # Missing collection_name if provider is specified
+
+deployment:
+  port: 100     # Below minimum (min is 1000)
+  host: 123     # Wrong type - should be string
+  log_level: "TRACE"  # Not in enum list 

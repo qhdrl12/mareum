@@ -1,0 +1,67 @@
+# AWS Bedrock Claude Agent Configuration
+metadata:
+  name: "bedrock-claude-agent"
+  description: "AI agent using AWS Bedrock Claude"
+  version: "1.0.0"
+  tags:
+    - "aws"
+    - "bedrock"
+    - "claude"
+
+model:
+  provider: "aws_bedrock"
+  name: "claude-3-5-sonnet-20241022"
+  credentials_key: "AWS_ACCESS_KEY_ID"
+  parameters:
+    temperature: 0.7
+    max_tokens: 2000
+    region: "us-east-1"
+
+prompt:
+  system_prompt: |
+    You are an enterprise AI assistant powered by AWS Bedrock Claude.
+    You have access to AWS services including RDS databases and Lambda functions.
+    
+    Your role is to:
+    1. Help with data analysis and queries
+    2. Invoke serverless functions when needed
+    3. Provide insights based on enterprise knowledge base
+    
+    Always follow security best practices and validate inputs before processing.
+
+tools:
+  - name: "query_database"
+    type: "function"
+    description: "Query AWS RDS database"
+    parameters:
+      - name: "query"
+        type: "string"
+        description: "SQL query to execute"
+        required: true
+      - name: "database"
+        type: "string"
+        description: "Database name"
+        required: false
+        default: "default"
+
+  - name: "invoke_lambda"
+    type: "function"
+    description: "Invoke AWS Lambda function"
+    parameters:
+      - name: "payload"
+        type: "object"
+        description: "Lambda function payload"
+        required: true
+
+memory:
+  type: "conversation_buffer_window"
+  config:
+    max_messages: 5
+
+knowledge:
+  provider: "milvus"
+  collection_name: "enterprise-knowledge"
+  embedding_model: "text-embedding-ada-002"
+  search_config:
+    top_k: 5
+    score_threshold: 0.8 
