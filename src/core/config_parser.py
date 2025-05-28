@@ -199,65 +199,85 @@ class ConfigParser:
         """
         errors = []
         
-        # Main error
-        path = " -> ".join(str(p) for p in error.absolute_path) if error.absolute_path else "root"
-        errors.append(f"At '{path}': {error.message}")
+        # Primary error
+        if error.absolute_path:
+            path = " -> ".join(str(p) for p in error.absolute_path)
+            errors.append(f"At '{path}': {error.message}")
+        else:
+            errors.append(f"At root: {error.message}")
         
-        # Context errors if available
+        # Add context from the validator if available
         if hasattr(error, 'context') and error.context:
             for context_error in error.context:
-                context_path = " -> ".join(str(p) for p in context_error.absolute_path) if context_error.absolute_path else "root"
-                errors.append(f"At '{context_path}': {context_error.message}")
+                if context_error.absolute_path:
+                    path = " -> ".join(str(p) for p in context_error.absolute_path)
+                    errors.append(f"  At '{path}': {context_error.message}")
+                else:
+                    errors.append(f"  {context_error.message}")
         
         return errors
     
     def normalize_configuration(self, config_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Normalize configuration by applying default values.
+        Normalize configuration data by applying default values and ensuring
+        all required fields are properly formatted.
         
         Args:
-            config_data: Validated configuration data
+            config_data: The validated configuration data
             
         Returns:
-            Normalized configuration with defaults applied
+            Normalized configuration data
         """
-        # Make a deep copy to avoid modifying the original
-        normalized = json.loads(json.dumps(config_data))
-        
-        # Apply default values based on the schema
         schema = self._load_schema()
-        self._apply_defaults(normalized, schema)
         
-        return normalized
+        # Apply default values recursively
+        normalized_data = self._apply_defaults(config_data.copy(), schema)
+        
+        return normalized_data
     
     def _apply_defaults(self, data: Dict[str, Any], schema: Dict[str, Any], path: str = ""):
         """
-        Recursively apply default values from schema to data.
+        Recursively apply default values from schema to configuration data.
         
         Args:
-            data: The data to apply defaults to
-            schema: The schema containing default values
-            path: Current path in the data structure (for debugging)
+            data: Configuration data to apply defaults to
+            schema: JSON schema with default values
+            path: Current path in the configuration (for debugging)
+            
+        Returns:
+            Configuration data with defaults applied
         """
-        if "properties" in schema:
+        if schema.get("type") == "object" and "properties" in schema:
+            # Handle object properties
             for prop_name, prop_schema in schema["properties"].items():
                 if "default" in prop_schema and prop_name not in data:
                     data[prop_name] = prop_schema["default"]
-                elif prop_name in data and "properties" in prop_schema:
-                    # Recursively apply defaults to nested objects
-                    if isinstance(data[prop_name], dict):
-                        self._apply_defaults(
-                            data[prop_name], 
-                            prop_schema, 
-                            f"{path}.{prop_name}" if path else prop_name
-                        )
+                elif prop_name in data and prop_schema.get("type") == "object":
+                    # Recursively apply defaults for nested objects
+                    data[prop_name] = self._apply_defaults(
+                        data[prop_name], 
+                        prop_schema, 
+                        f"{path}.{prop_name}" if path else prop_name
+                    )
         
-        # Handle array items if schema defines items with defaults
-        if "items" in schema and isinstance(data, list):
-            for i, item in enumerate(data):
-                if isinstance(item, dict) and "properties" in schema["items"]:
-                    self._apply_defaults(
-                        item, 
-                        schema["items"], 
-                        f"{path}[{i}]" if path else f"[{i}]"
-                    ) 
+        return data
+
+
+# Convenience function for easy usage
+def load_config(config_path: Union[str, Path], schema_path: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
+    """
+    Load and parse a configuration file.
+    
+    Args:
+        config_path: Path to the YAML configuration file
+        schema_path: Optional path to JSON schema file for validation
+        
+    Returns:
+        Parsed and validated configuration
+        
+    Raises:
+        ConfigParseError: If file reading or parsing fails
+        ConfigValidationError: If validation fails
+    """
+    parser = ConfigParser(schema_path=schema_path)
+    return parser.parse_from_file(config_path) 
