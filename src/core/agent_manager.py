@@ -7,8 +7,8 @@ replacing global variables with proper dependency injection pattern.
 
 import logging
 import os
+
 from typing import Optional, List, Dict, Any
-from pathlib import Path
 
 from ..agents.react_agent import ReActAgent
 from ..agents.tools import Calculator, WebSearch, KnowledgeBaseSearch, FileManager
