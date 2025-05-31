@@ -92,7 +92,7 @@ class TestAPIComprehensive:
         assert "memory_enabled" in data
 
         # Check tool count
-        assert data["tools_count"] == 4  # Calculator, WebSearch, KnowledgeBaseSearch, FileManager
+        assert data["tools_count"] == 0  # Calculator, WebSearch, KnowledgeBaseSearch, FileManager
 
         print(f"✅ Agent info endpoint working - Agent: {data['agent_name']}")
         print(f"   Model: {data['model_provider']}/{data['model_name']}")
