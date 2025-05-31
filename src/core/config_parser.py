@@ -162,15 +162,73 @@ class ConfigParser:
             # 에러 타입별 메시지 개선
             error_type = error_detail['type']
             error_msg = error_detail['msg']
+            ctx = error_detail.get('ctx', {})
             
             if error_type == 'missing':
-                errors.append(f"Required field missing at '{path}': {error_msg}")
+                errors.append(f"❌ 필수 필드가 누락되었습니다: '{path}'\n   💡 해결방법: 해당 필드를 추가해주세요.")
+            
+            elif error_type == 'string_type':
+                errors.append(f"❌ 문자열 타입이 필요합니다: '{path}'\n   💡 해결방법: 값을 문따옴표로 감싸주세요. 예: \"your_value\"")
+            
+            elif error_type == 'dict_type':
+                errors.append(f"❌ 딕셔너리 타입이 필요합니다: '{path}'\n   💡 해결방법: 중괄호를 사용하거나 YAML 객체 형태로 작성해주세요. 예: {{}}")
+            
+            elif error_type == 'list_type':
+                errors.append(f"❌ 리스트 타입이 필요합니다: '{path}'\n   💡 해결방법: 대괄호를 사용하거나 YAML 배열 형태로 작성해주세요. 예: []")
+            
+            elif error_type == 'enum':
+                # Enum 값들 추출
+                enum_values = []
+                if 'expected' in ctx:
+                    # Pydantic v2 format: 'expected' contains allowed values
+                    expected = ctx['expected']
+                    if hasattr(expected, '__iter__') and not isinstance(expected, str):
+                        enum_values = list(expected)
+                    else:
+                        enum_values = [expected]
+                else:
+                    # Fallback: parse from error message
+                    import re
+                    match = re.search(r"Input should be (.+)", error_msg)
+                    if match:
+                        enum_str = match.group(1)
+                        # Extract quoted values, removing extra quotes
+                        raw_values = re.findall(r"'([^']*)'", enum_str)
+                        enum_values = [v.strip("'\"") for v in raw_values]
+                
+                if enum_values:
+                    values_str = ", ".join(f"'{v}'" for v in enum_values)
+                    errors.append(f"❌ 잘못된 값입니다: '{path}'\n   💡 허용된 값: {values_str}")
+                else:
+                    errors.append(f"❌ 잘못된 값입니다: '{path}'\n   💡 해결방법: {error_msg}")
+            
+            elif error_type == 'model_type':
+                # Nested model validation error
+                if 'prompt' in path.lower():
+                    errors.append(f"❌ Prompt 설정이 잘못되었습니다: '{path}'\n   💡 해결방법: 'system_prompt' 필드가 포함된 객체를 제공해주세요.")
+                elif 'tool' in path.lower():
+                    errors.append(f"❌ Tool 설정이 잘못되었습니다: '{path}'\n   💡 해결방법: 'name', 'description', 'type' 필드가 포함된 객체를 제공해주세요.")
+                else:
+                    errors.append(f"❌ 객체 구조가 잘못되었습니다: '{path}'\n   💡 해결방법: 올바른 구조의 객체를 제공해주세요.")
+            
             elif error_type == 'value_error':
-                errors.append(f"Invalid value at '{path}': {error_msg}")
+                # Custom validator errors
+                if 'url' in error_msg.lower() or 'endpoint' in path.lower():
+                    errors.append(f"❌ 잘못된 URL 형식입니다: '{path}'\n   💡 해결방법: 'http://' 또는 'https://'로 시작하는 유효한 URL을 입력해주세요.")
+                elif 'api_key' in path.lower():
+                    errors.append(f"❌ API 키 형식이 잘못되었습니다: '{path}'\n   💡 해결방법: 유효한 API 키를 입력하거나 환경변수명을 사용해주세요.")
+                else:
+                    errors.append(f"❌ 값 검증 오류: '{path}'\n   💡 상세정보: {error_msg}")
+            
             elif error_type == 'type_error':
-                errors.append(f"Type error at '{path}': {error_msg}")
+                errors.append(f"❌ 타입 오류: '{path}'\n   💡 해결방법: {error_msg}")
+            
+            elif error_type == 'extra_forbidden':
+                errors.append(f"❌ 허용되지 않는 필드입니다: '{path}'\n   💡 해결방법: 해당 필드를 제거하거나 올바른 필드명으로 변경해주세요.")
+            
             else:
-                errors.append(f"Error at '{path}': {error_msg} (type: {error_type})")
+                # 기타 에러들에 대한 fallback
+                errors.append(f"❌ 오류 ({error_type}): '{path}'\n   💡 상세정보: {error_msg}")
         
         return errors
     
