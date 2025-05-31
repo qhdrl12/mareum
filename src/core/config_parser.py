@@ -1,80 +1,43 @@
 """
-Configuration parser and validator for ReAct Agent configurations.
+Pydantic-based configuration parser for ReAct Agent configurations.
 
 This module provides a ConfigParser class that loads and validates
-YAML configuration files against a JSON schema, with automatic
-application of default values.
+YAML configuration files using Pydantic models directly, eliminating
+the need for separate JSON schema files.
+
+schema.json이 없어도 되는 이유:
+1. Pydantic이 런타임 타입 검증 제공
+2. 더 강력한 커스텀 검증 로직
+3. 자동 타입 변환 및 기본값 처리
+4. 단일 소스 진실 (Single Source of Truth)
+5. 더 나은 에러 메시지
 """
 
-import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import yaml
-from jsonschema import validate
-from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
+from pydantic import ValidationError
 
-
-class ConfigParseError(Exception):
-    """Exception raised when configuration parsing fails."""
-    
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
-        super().__init__(message)
-        self.details = details
-
-
-class ConfigValidationError(Exception):
-    """Exception raised when configuration validation fails."""
-    
-    def __init__(self, message: str, errors: List[str]):
-        super().__init__(message)
-        self.errors = errors
+from src.schemas.agent_config import AgentConfig
+from .exceptions import ConfigParseError, ConfigValidationError
 
 
 class ConfigParser:
-    """YAML configuration parser with schema validation and default value application."""
+    """
+    YAML configuration parser using Pydantic models.
     
-    def __init__(self, schema_path: Optional[Union[str, Path]] = None):
-        """
-        Initialize ConfigParser with optional schema file.
-        
-        Args:
-            schema_path: Path to JSON schema file for validation
-        """
-        self.schema_path = schema_path
-        self._schema = None
+    schema.json 대신 Pydantic 클래스를 직접 사용하는 이점:
+    - 런타임 타입 안전성
+    - 커스텀 검증 로직 (field_validator, model_validator)
+    - 자동 타입 변환 (문자열 -> 정수, 등)
+    - 더 명확한 에러 메시지
+    - 단일 스키마 정의 (중복 제거)
+    """
     
-    def _load_schema(self) -> Dict[str, Any]:
-        """
-        Load and cache the JSON schema for validation.
-        
-        Returns:
-            The loaded schema as a dictionary
-            
-        Raises:
-            ConfigParseError: If schema file cannot be loaded
-        """
-        if self._schema is not None:
-            return self._schema
-            
-        if self.schema_path is None:
-            # Default to schema.json in project root
-            schema_path = Path(__file__).parent.parent.parent / "schema.json"
-        else:
-            schema_path = Path(self.schema_path)
-            
-        if not schema_path.exists():
-            raise ConfigParseError(f"Schema file not found: {schema_path}")
-            
-        try:
-            with open(schema_path, 'r', encoding='utf-8') as f:
-                self._schema = json.load(f)
-        except json.JSONDecodeError as e:
-            raise ConfigParseError(f"Invalid JSON in schema file: {e}")
-        except Exception as e:
-            raise ConfigParseError(f"Error loading schema file: {e}")
-            
-        return self._schema
+    def __init__(self):
+        """Initialize Pydantic-based ConfigParser."""
+        pass
     
     def _parse_yaml_content(self, content: str) -> Dict[str, Any]:
         """
@@ -100,7 +63,7 @@ class ConfigParser:
         except Exception as e:
             raise ConfigParseError(f"Unexpected error parsing YAML configuration: {e}")
     
-    def parse_from_string(self, content: str) -> Dict[str, Any]:
+    def parse_from_string(self, content: str) -> AgentConfig:
         """
         Parse configuration from YAML string content.
         
@@ -108,7 +71,7 @@ class ConfigParser:
             content: YAML configuration content as string
             
         Returns:
-            Parsed and validated configuration
+            Validated AgentConfig instance
             
         Raises:
             ConfigParseError: If parsing fails
@@ -117,15 +80,10 @@ class ConfigParser:
         # Parse the YAML content
         config_data = self._parse_yaml_content(content)
         
-        # Validate against schema
-        validated_config = self.validate_configuration(config_data)
-        
-        # Normalize the configuration
-        normalized_config = self.normalize_configuration(validated_config)
-        
-        return normalized_config
+        # Validate using Pydantic
+        return self.validate_configuration(config_data)
     
-    def parse_from_file(self, file_path: Union[str, Path]) -> Dict[str, Any]:
+    def parse_from_file(self, file_path: Union[str, Path]) -> AgentConfig:
         """
         Parse configuration from YAML file.
         
@@ -133,7 +91,7 @@ class ConfigParser:
             file_path: Path to the YAML configuration file
             
         Returns:
-            Parsed and validated configuration
+            Validated AgentConfig instance
             
         Raises:
             ConfigParseError: If file reading or parsing fails
@@ -141,12 +99,12 @@ class ConfigParser:
         """
         file_path = Path(file_path)
         
-        if not file_path.exists():
-            raise ConfigParseError(f"Configuration file not found: {file_path}")
-            
-        # Validate file extension
+        # Validate file extension first
         if file_path.suffix.lower() not in ['.yaml', '.yml']:
             raise ConfigParseError(f"Only YAML files (.yaml, .yml) are supported. Got: {file_path.suffix}")
+        
+        if not file_path.exists():
+            raise ConfigParseError(f"Configuration file not found: {file_path}")
             
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -156,26 +114,24 @@ class ConfigParser:
             
         return self.parse_from_string(content)
     
-    def validate_configuration(self, config_data: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_configuration(self, config_data: Dict[str, Any]) -> AgentConfig:
         """
-        Validate configuration against the JSON schema.
+        Validate configuration using Pydantic model.
         
         Args:
             config_data: Configuration data to validate
             
         Returns:
-            Validated configuration data
+            Validated AgentConfig instance
             
         Raises:
             ConfigValidationError: If validation fails
         """
-        schema = self._load_schema()
-        
         try:
-            validate(instance=config_data, schema=schema)
-            return config_data
-        except JsonSchemaValidationError as e:
-            # Format validation errors into user-friendly messages
+            # Pydantic이 자동으로 검증, 타입 변환, 기본값 적용을 수행
+            return AgentConfig(**config_data)
+        except ValidationError as e:
+            # Pydantic 에러를 사용자 친화적 메시지로 변환
             errors = self._format_validation_errors(e)
             raise ConfigValidationError(
                 "Configuration validation failed",
@@ -187,77 +143,70 @@ class ConfigParser:
                 [str(e)]
             )
     
-    def _format_validation_errors(self, error: JsonSchemaValidationError) -> List[str]:
+    def _format_validation_errors(self, error: ValidationError) -> List[str]:
         """
-        Format JSON schema validation errors into user-friendly messages.
+        Format Pydantic validation errors into user-friendly messages.
         
         Args:
-            error: The validation error from jsonschema
+            error: The validation error from Pydantic
             
         Returns:
             List of formatted error messages
         """
         errors = []
         
-        # Main error
-        path = " -> ".join(str(p) for p in error.absolute_path) if error.absolute_path else "root"
-        errors.append(f"At '{path}': {error.message}")
-        
-        # Context errors if available
-        if hasattr(error, 'context') and error.context:
-            for context_error in error.context:
-                context_path = " -> ".join(str(p) for p in context_error.absolute_path) if context_error.absolute_path else "root"
-                errors.append(f"At '{context_path}': {context_error.message}")
+        for error_detail in error.errors():
+            # 경로 구성
+            path = " -> ".join(str(p) for p in error_detail['loc']) if error_detail['loc'] else "root"
+            
+            # 에러 타입별 메시지 개선
+            error_type = error_detail['type']
+            error_msg = error_detail['msg']
+            
+            if error_type == 'missing':
+                errors.append(f"Required field missing at '{path}': {error_msg}")
+            elif error_type == 'value_error':
+                errors.append(f"Invalid value at '{path}': {error_msg}")
+            elif error_type == 'type_error':
+                errors.append(f"Type error at '{path}': {error_msg}")
+            else:
+                errors.append(f"Error at '{path}': {error_msg} (type: {error_type})")
         
         return errors
     
-    def normalize_configuration(self, config_data: Dict[str, Any]) -> Dict[str, Any]:
+    def to_dict(self, config: AgentConfig) -> Dict[str, Any]:
         """
-        Normalize configuration by applying default values.
+        Convert AgentConfig instance to dictionary.
         
         Args:
-            config_data: Validated configuration data
+            config: AgentConfig instance
             
         Returns:
-            Normalized configuration with defaults applied
+            Configuration as dictionary
         """
-        # Make a deep copy to avoid modifying the original
-        normalized = json.loads(json.dumps(config_data))
-        
-        # Apply default values based on the schema
-        schema = self._load_schema()
-        self._apply_defaults(normalized, schema)
-        
-        return normalized
+        return config.model_dump()
     
-    def _apply_defaults(self, data: Dict[str, Any], schema: Dict[str, Any], path: str = ""):
+    def to_yaml(self, config: AgentConfig, file_path: Optional[Union[str, Path]] = None) -> str:
         """
-        Recursively apply default values from schema to data.
+        Convert AgentConfig instance to YAML string or save to file.
         
         Args:
-            data: The data to apply defaults to
-            schema: The schema containing default values
-            path: Current path in the data structure (for debugging)
+            config: AgentConfig instance
+            file_path: Optional path to save YAML file
+            
+        Returns:
+            YAML string representation
         """
-        if "properties" in schema:
-            for prop_name, prop_schema in schema["properties"].items():
-                if "default" in prop_schema and prop_name not in data:
-                    data[prop_name] = prop_schema["default"]
-                elif prop_name in data and "properties" in prop_schema:
-                    # Recursively apply defaults to nested objects
-                    if isinstance(data[prop_name], dict):
-                        self._apply_defaults(
-                            data[prop_name], 
-                            prop_schema, 
-                            f"{path}.{prop_name}" if path else prop_name
-                        )
+        # mode='json'을 사용하여 Enum을 문자열로 직렬화
+        yaml_str = yaml.dump(
+            config.model_dump(mode='json'),
+            default_flow_style=False,
+            allow_unicode=True,
+            sort_keys=False
+        )
         
-        # Handle array items if schema defines items with defaults
-        if "items" in schema and isinstance(data, list):
-            for i, item in enumerate(data):
-                if isinstance(item, dict) and "properties" in schema["items"]:
-                    self._apply_defaults(
-                        item, 
-                        schema["items"], 
-                        f"{path}[{i}]" if path else f"[{i}]"
-                    ) 
+        if file_path:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(yaml_str)
+        
+        return yaml_str 

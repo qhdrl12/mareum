@@ -1,0 +1,24 @@
+metadata:
+  name: "openai-compatible-agent"
+  description: "OpenAI compatible AI assistant using gpt-4o-mini model"
+  version: "1.0.0"
+
+model:
+  provider: "openai_compatible"
+  name: "gpt-4o-mini"
+  api_key: "OPENAI_API_KEY"
+  base_url: "https://api.openai.com/v1"
+  parameters:
+    temperature: 0.7
+    max_tokens: 100
+    timeout: 30000
+    max_retries: 3
+
+memory:
+  type: "simple_buffer"
+  config:
+    k: 5
+
+# gpt-4o-mini supports system prompts
+prompt:
+  system_prompt: "You are an AI assistant that helps customers with their queries. You can perform calculations and searches when needed."

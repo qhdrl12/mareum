@@ -10,7 +10,7 @@ metadata:
 model:
   provider: "invalid_provider"  # Not in enum list
   name: "gpt-4"
-  # Missing required 'credentials_key' field
+  # Missing required 'api_key' field
   temperature: 3.0  # Out of range (max is 2)
   max_tokens: 0     # Below minimum (min is 1)
 
@@ -28,7 +28,8 @@ tools:
 
 memory:
   type: "invalid_memory_type"  # Not in enum list
-  max_messages: 0  # Below minimum (min is 1)
+  config:
+    k: 0  # Below minimum (min is 1)
 
 knowledge:
   provider: "unknown_provider"  # Not in enum list

@@ -12,6 +12,7 @@ from typing import Any, Dict, Optional, Union
 from pathlib import Path
 
 from ..core.config_parser import ConfigParser
+from ..core.exceptions import ConfigError, ConfigParseError, ConfigValidationError
 
 
 class ConfigLoader:
@@ -101,7 +102,7 @@ class ConfigLoader:
         if validate:
             try:
                 # Use ConfigParser for validation with schema.json
-                parser = ConfigParser(schema_path="schema.json")
+                parser = ConfigParser()
                 parser.validate_configuration(raw_data)
             except Exception as e:
                 raise ValueError(f"Configuration validation failed: {e}")
@@ -386,7 +387,7 @@ class ConfigLoader:
             "model": {
                 "provider": "openai",
                 "name": "gpt-4",
-                "credentials_key": "OPENAI_API_KEY",
+                "api_key": "OPENAI_API_KEY",
                 "parameters": {
                     "temperature": 0.7,
                     "max_tokens": 2000

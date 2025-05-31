@@ -11,11 +11,11 @@ metadata:
 model:
   provider: "openai_compatible"
   name: "llama-2-7b-chat"
-  credentials_key: "VLLM_API_KEY"
+  api_key: "VLLM_API_KEY"
+  base_url: "http://localhost:8000/v1"
   parameters:
-    base_url: "http://localhost:8000/v1"
     temperature: 0.7
-    max_tokens: 1000
+    max_tokens: 50
 
 prompt:
   system_prompt: |
@@ -24,20 +24,13 @@ prompt:
     
     Always be helpful and provide accurate information based on the available tools.
 
-tools:
-  - name: "search_documents"
-    type: "function"
-    description: "Search through local documents"
-    parameters:
-      - name: "query"
-        type: "string"
-        description: "Search query"
-        required: true
+# Tools configuration will be enhanced later
+tools: []
 
 memory:
-  type: "conversation_buffer_window"
+  type: "simple_buffer"
   config:
-    max_messages: 5
+    k: 5
 
 knowledge:
   provider: "faiss"
