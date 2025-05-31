@@ -56,7 +56,6 @@ ENV PATH="/app/.venv/bin:$PATH"
 # Copy application code
 COPY src/ ./src/
 COPY examples/ ./examples/
-COPY schema.json ./
 COPY scripts/run_api_server.py ./scripts/
 
 # Create directories for data persistence

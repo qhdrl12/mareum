@@ -32,7 +32,7 @@ This project provides a robust schema validation system that allows users to def
 │   │   └── config_parser.py     # YAML configuration parser with schema validation
 ├── examples/
 │   ├── example_agent.yaml       # Basic OpenAI example
-│   ├── vllm_agent.yaml         # vLLM/OpenAI-compatible example
+│   ├── openai_agent.yaml         # OpenAI API example
 │   └── bedrock_agent.yaml      # AWS Bedrock Claude example
 └── tests/
     ├── test_config_parser.py    # Unit tests for ConfigParser

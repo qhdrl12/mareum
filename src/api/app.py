@@ -119,7 +119,6 @@ async def chat_with_agent(request: AgentRequest):
                 "agent_name": agent.config.metadata.name,
                 "model": f"{agent.config.model.provider.value}/{agent.config.model.name}",
                 "memory_enabled": agent.memory_enabled,
-                "memory_history_count": len(agent.conversation_history) // 2 if agent.memory_enabled else 0,
             },
         )
 

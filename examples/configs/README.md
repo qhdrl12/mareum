@@ -30,9 +30,9 @@
 - **AWS Bedrock Claude**: 엔터프라이즈 AI 에이전트
 - **AWS 서비스 통합**: RDS, Lambda 연동
 
-#### `vllm_agent.yaml`
-- **로컬 vLLM 배포**: OpenAI 호환 API 사용
-- **로컬 문서 검색**: FAISS 벡터 DB
+#### `openai_agent.yaml`
+- **OpenAI API 배포**: 클라우드 기반 GPT-4o-mini 사용
+- **문서 검색**: OpenAI 임베딩 모델 활용
 
 ### 검증 테스트 파일
 
@@ -132,7 +132,7 @@ deployment:
 - `default_agent.yaml` - 기본 에이전트
 - `example_agent.yaml` - 고급 예시 에이전트
 - `bedrock_agent.yaml` - AWS Bedrock 에이전트
-- `vllm_agent.yaml` - vLLM 로컬 에이전트
+- `openai_agent.yaml` - OpenAI API 배포 에이전트
 
 ### ❌ **비표준 형식 사용 금지**
 - `*_config.yaml` - 더 이상 사용하지 않음

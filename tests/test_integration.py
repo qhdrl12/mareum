@@ -78,24 +78,24 @@ class TestConfigurationIntegration:
         with pytest.raises(ConfigValidationError):
             parser.validate_configuration(invalid_config)
     
-    def test_vllm_config(self):
-        """Test VLLM configuration if available."""
+    def test_openai_config(self):
+        """Test OpenAI configuration if available."""
         parser = ConfigParser()
         
-        config_path = "examples/configs/vllm_agent.yaml"
+        config_path = "examples/configs/openai_agent.yaml"
         if Path(config_path).exists():
             try:
                 config = parser.parse_from_file(config_path)
                 assert isinstance(config, AgentConfig)
             except Exception as e:
-                pytest.skip(f"VLLM config has validation issues: {e}")
+                pytest.skip(f"OpenAI config has validation issues: {e}")
         else:
-            pytest.skip(f"VLLM config not found: {config_path}")
+            pytest.skip(f"OpenAI config not found: {config_path}")
     
     @pytest.mark.parametrize("config_file", [
         "examples/configs/valid_agent.yaml",
         "examples/configs/example_agent.yaml", 
-        "examples/configs/vllm_agent.yaml"
+        "examples/configs/openai_agent.yaml"
     ])
     def test_all_config_files(self, config_file):
         """Test all available configuration files."""

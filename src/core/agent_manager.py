@@ -135,7 +135,6 @@ class AgentManager:
             "model_name": config.model.name,
             "tools_count": len(self._agent.tools),
             "memory_enabled": self._agent.memory_enabled,
-            "memory_history_count": len(self._agent.conversation_history) if self._agent.memory_enabled else 0
         }
     
     def reload_agent(self, config_path: Optional[str] = None) -> ReActAgent:

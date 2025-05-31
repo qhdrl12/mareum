@@ -259,7 +259,7 @@ class TestBackwardCompatibility:
         """Test that example configurations work with Config parser."""
         example_configs = [
             "examples/configs/openai_compatible.yaml",
-            "examples/configs/vllm_agent.yaml", 
+            "examples/configs/openai_agent.yaml", 
             "examples/configs/example_agent.yaml"
         ]
         
