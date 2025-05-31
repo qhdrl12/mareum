@@ -10,11 +10,11 @@ metadata:
 
 model:
   provider: "openai"
-  name: "gpt-4o-mini"
+  name: "o4-mini"
   api_key: "OPENAI_API_KEY"
   parameters:
-    temperature: 0.7
-    max_tokens: 2048
+    temperature: 1
+    max_completion_tokens: 2048
 
 prompt:
   system_prompt: |

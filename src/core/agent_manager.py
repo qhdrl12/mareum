@@ -73,7 +73,7 @@ class AgentManager:
         
         # Use default tools if none provided
         if tools is None:
-            tools = self._get_default_tools()
+            tools = [] # self._get_default_tools()
         
         try:
             # Create new agent instance

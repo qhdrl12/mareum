@@ -109,6 +109,7 @@ async def chat_with_agent(request: AgentRequest):
 
         # Process the request using the correct method
         result = await agent.run(request.message)
+        print(f"chat result: {result}")
 
         return AgentResponse(
             response=result["response"],
