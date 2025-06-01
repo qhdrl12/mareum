@@ -2,17 +2,16 @@
 FastAPI application for ReAct Agent API.
 """
 
-import os
 import logging
+import uvicorn
 from datetime import datetime
-from typing import List, Dict, Any, Optional
-from pathlib import Path
+from typing import Optional
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
+from dotenv import load_dotenv
 
 from src.api.models import (
     AgentRequest,
@@ -21,7 +20,8 @@ from src.api.models import (
     HealthResponse,
 )
 from src.core.agent_manager import AgentManager
-from src.core.exceptions import ConfigError
+
+load_dotenv()
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
     
     # Initialize agent manager
     try:
-        _agent_manager = AgentManager.create_from_env(
+        _agent_manager = await AgentManager.create_from_env(
             env_var="AGENT_CONFIG_PATH",
             default_path="examples/configs/openai_compatible.yaml"  # Fixed typo
         )
@@ -109,6 +109,7 @@ async def chat_with_agent(request: AgentRequest):
 
         # Process the request using the correct method
         result = await agent.run(request.message)
+        
         print(f"chat result: {result}")
 
         return AgentResponse(
@@ -119,7 +120,6 @@ async def chat_with_agent(request: AgentRequest):
                 "timestamp": datetime.now().isoformat(),
                 "agent_name": agent.config.metadata.name,
                 "model": f"{agent.config.model.provider.value}/{agent.config.model.name}",
-                "memory_enabled": agent.memory_enabled,
             },
         )
 

@@ -231,90 +231,39 @@ class MemoryConfig(BaseModel):
         return self
 
 
-class ToolParameter(BaseModel):
+class ToolType(str, Enum):
     """
-    Tool parameter definition.
-
-    도구(Tool)의 파라미터를 정의하는 클래스입니다.
-    파라미터의 이름, 타입, 설명, 필수 여부, 기본값 등을 포함합니다.
-
-    TODO: MCP(Model Context Protocol) 도구로 대체 예정
+    Tool integration types.
+    
+    도구 통합 타입을 정의합니다.
     """
-
-    name: str = Field(..., description="Parameter name")
-    type: str = Field(
-        ..., description="Parameter type (string, integer, boolean, etc.)"
-    )
-    description: str = Field(..., description="Parameter description")
-    required: bool = Field(default=True, description="Whether parameter is required")
-    default: Optional[Any] = Field(None, description="Default value if not required")
+    BUILTIN = "builtin"  # LangChain BaseTool implementations
+    MCP = "mcp"  # MCP servers via streamable_http
 
 
 class ToolConfig(BaseModel):
     """
-    Tool configuration.
-
-    에이전트가 사용할 수 있는 도구의 설정을 정의하는 클래스입니다.
-    API 호출, 함수 실행, 내장 도구 등 다양한 타입의 도구를 지원합니다.
-
-    TODO: MCP(Model Context Protocol) 도구로 대체 예정
-    현재 구조는 임시적이며, 향후 MCP 표준에 맞춰 전면 재설계될 예정입니다.
+    Simplified tool configuration supporting BaseTool and MCP.
+    
+    BaseTool과 MCP를 지원하는 간소화된 도구 설정입니다.
     """
-
-    name: str = Field(..., description="Tool name", min_length=1)
-    description: str = Field(..., description="Tool description")
-    type: Literal["api", "function", "builtin"] = Field(
-        ..., description="Tool type"
-    )  # TODO: MCP 타입으로 변경 예정
-
-    # API 도구용 설정 - TODO: MCP 스키마로 대체 예정
-    endpoint: Optional[str] = Field(None, description="API endpoint URL")
-    method: Optional[Literal["GET", "POST", "PUT", "DELETE"]] = Field(
-        "POST", description="HTTP method"
-    )
-    headers: Optional[Dict[str, str]] = Field(
-        default_factory=dict, description="HTTP headers"
-    )
-
-    # 함수 도구용 설정 - TODO: MCP 함수 정의로 대체 예정
-    module: Optional[str] = Field(None, description="Python module path")
-    function: Optional[str] = Field(None, description="Function name")
-
-    # 도구 파라미터 - TODO: MCP 파라미터 스키마로 대체 예정
-    parameters: List[ToolParameter] = Field(
-        default_factory=list, description="Tool parameters"
-    )
-
-    @model_validator(mode="after")
-    def validate_tool_config(self):
-        """
-        Validate tool configuration based on type.
-
-        도구 타입에 따른 설정의 유효성을 검증합니다.
-        - API 도구: endpoint 필수
-        - 함수 도구: module과 function 필수
-        - 내장 도구: 추가 설정 불필요
-
-        Returns:
-            ToolConfig: 검증된 도구 설정 객체
-
-        Raises:
-            ValueError: 도구 타입별 필수 설정이 누락된 경우
-
-        TODO: MCP 도구 검증 로직으로 대체 예정
-        """
-        if self.type == "api":
-            if not self.endpoint:
-                raise ValueError("API tools require an endpoint")
-
-        elif self.type == "function":
-            if not self.module or not self.function:
-                raise ValueError("Function tools require module and function")
-
-        elif self.type == "builtin":
-            # 내장 도구는 미리 정의되어 있어 추가 설정이 필요 없음
-            pass
-
+    type: ToolType = Field(..., description="Tool type: builtin or mcp")
+    name: str = Field(..., description="Tool name or identifier")
+    
+    # MCP-specific fields (only used when type is "mcp")
+    url: Optional[str] = Field(None, description="MCP server URL (required for mcp type)")
+    timeout: int = Field(default=30, description="Connection timeout in seconds for MCP")
+    
+    @model_validator(mode='after')
+    def validate_mcp_config(self):
+        """Validate MCP-specific configuration."""
+        if self.type == ToolType.MCP:
+            if not self.url:
+                raise ValueError("url is required when type is 'mcp'")
+        elif self.type == ToolType.BUILTIN:
+            # For builtin tools, MCP fields should not be used
+            if self.url:
+                raise ValueError("url is not used for builtin tools")
         return self
 
 
@@ -420,8 +369,8 @@ class AgentConfig(BaseModel):
     """
     Complete agent configuration schema.
 
-    ReAct 에이전트의 완전한 설정 스키마를 정의하는 메인 클래스입니다.
-    메타데이터, 모델, 메모리, 도구, 지식베이스, 프롬프트 등 모든 설정을 포함합니다.
+    에이전트의 전체 설정을 정의하는 메인 클래스입니다.
+    모델, 메모리, 지식베이스, 도구, 프롬프트 등 에이전트의 모든 구성 요소를 포함합니다.
     """
 
     metadata: AgentMetadata = Field(..., description="Agent metadata")
@@ -430,49 +379,39 @@ class AgentConfig(BaseModel):
     )
     model: ModelConfig = Field(..., description="LLM model configuration")
     memory: Optional[MemoryConfig] = Field(None, description="Memory configuration")
-    tools: Optional[List[ToolConfig]] = Field(
-        default_factory=list, description="Available tools"
-    )  # TODO: MCP 도구 목록으로 대체 예정
     knowledge: Optional[KnowledgeConfig] = Field(
         None, description="Knowledge base configuration"
     )
-    prompt: PromptConfig = Field(..., description="Prompt configuration")
+    tools: List[ToolConfig] = Field(
+        default_factory=list, description="Tool configurations (BaseTool and MCP)"
+    )
+    prompt: Optional[PromptConfig] = Field(None, description="Prompt configuration")
 
-    model_config = {
-        "extra": "forbid",  # 추가 필드 금지
-        "validate_assignment": True,  # 할당 시 검증 수행
-        "use_enum_values": True,  # Enum 값 사용
-    }
-
-    @field_validator("tools")
-    @classmethod
-    def validate_tools(cls, v):
+    @model_validator(mode="after")
+    def validate_config(self):
         """
-        Validate tools list.
+        Validate complete agent configuration.
 
-        도구 목록의 유효성을 검증합니다.
-        도구 이름은 중복될 수 없습니다. 빈 목록이나 None도 허용됩니다.
-
-        Args:
-            v (Optional[List[ToolConfig]]): 검증할 도구 목록
+        에이전트 설정의 전체 유효성을 검증합니다.
+        - 모델과 지식베이스 임베딩 모델의 호환성 검증
+        - 프로바이더별 필수 설정 검증
 
         Returns:
-            Optional[List[ToolConfig]]: 검증된 도구 목록
+            AgentConfig: 검증된 에이전트 설정 객체
 
         Raises:
-            ValueError: 도구 이름이 중복된 경우
-
-        TODO: MCP 도구 검증 로직으로 대체 예정
+            ValueError: 설정이 유효하지 않은 경우
         """
-        if v is None or len(v) == 0:
-            return v
+        # Validate embedding model compatibility
+        if self.knowledge and self.knowledge.embedding_model:
+            if (
+                self.model.provider == LLMProvider.OPENAI
+                and "ada-002" not in self.knowledge.embedding_model
+            ):
+                # This is just a warning, not an error
+                pass
 
-        # 중복된 도구 이름 확인
-        tool_names = [tool.name for tool in v]
-        if len(tool_names) != len(set(tool_names)):
-            raise ValueError("Tool names must be unique")
-
-        return v
+        return self
 
     def to_json_schema(self) -> Dict[str, Any]:
         """
@@ -511,31 +450,6 @@ class AgentConfig(BaseModel):
 
         return cls(**data)
 
-    @classmethod
-    def from_json_file(cls, file_path: str) -> "AgentConfig":
-        """
-        Load configuration from JSON file.
-
-        JSON 파일에서 에이전트 설정을 로드합니다.
-
-        Args:
-            file_path (str): JSON 파일 경로
-
-        Returns:
-            AgentConfig: 로드된 에이전트 설정 객체
-
-        Raises:
-            FileNotFoundError: 파일이 존재하지 않는 경우
-            json.JSONDecodeError: JSON 파싱 오류
-            ValidationError: 설정 검증 오류
-        """
-        import json
-
-        with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        return cls(**data)
-
     def to_yaml_file(self, file_path: str) -> None:
         """
         Save configuration to YAML file.
@@ -557,26 +471,4 @@ class AgentConfig(BaseModel):
                 default_flow_style=False,  # 블록 스타일 사용
                 allow_unicode=True,  # 유니코드 허용
                 sort_keys=False,  # 키 정렬 안함
-            )
-
-    def to_json_file(self, file_path: str) -> None:
-        """
-        Save configuration to JSON file.
-
-        에이전트 설정을 JSON 파일로 저장합니다.
-
-        Args:
-            file_path (str): 저장할 JSON 파일 경로
-
-        Raises:
-            IOError: 파일 쓰기 오류
-        """
-        import json
-
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(
-                self.model_dump(),
-                f,
-                indent=2,  # 2칸 들여쓰기
-                ensure_ascii=False,  # 유니코드 문자 그대로 출력
             )

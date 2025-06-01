@@ -1,28 +1,29 @@
 """
-Agent lifecycle management.
+Agent management and lifecycle handling.
 
-This module provides centralized agent instance management,
-replacing global variables with proper dependency injection pattern.
+This module manages agent creation, lifecycle, and interactions.
+Handles both direct agent instantiation and RESTful API interactions.
+
+이 모듈은 에이전트 생성, 생명주기, 상호작용을 관리합니다.
+직접 에이전트 인스턴스화와 RESTful API 상호작용을 모두 처리합니다.
 """
 
 import logging
 import os
 
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 
 from ..agents.react_agent import ReActAgent
-from ..agents.tools import Calculator, WebSearch, KnowledgeBaseSearch, FileManager
 from .exceptions import ConfigError
 
 
 class AgentManager:
     """
-    Centralized agent lifecycle management.
+    Manages ReAct agent instances and their lifecycle.
     
-    Replaces global agent variables with proper singleton pattern
-    and dependency injection for better testability and maintainability.
+    ReAct 에이전트 인스턴스와 생명주기를 관리합니다.
     """
-    
+
     _instance: Optional['AgentManager'] = None
     _agent: Optional[ReActAgent] = None
     _config_path: Optional[str] = None
@@ -39,10 +40,9 @@ class AgentManager:
         """Check if agent is initialized."""
         return self._agent is not None
     
-    def initialize_agent(
+    async def initialize_agent(
         self, 
         config_path: str, 
-        tools: Optional[List] = None,
         force_reload: bool = False
     ) -> ReActAgent:
         """
@@ -50,7 +50,6 @@ class AgentManager:
         
         Args:
             config_path: Path to agent configuration file
-            tools: Optional list of tools to use (defaults to standard tools)
             force_reload: Force reload even if agent already exists
             
         Returns:
@@ -71,18 +70,16 @@ class AgentManager:
         if not os.path.isabs(config_path):
             config_path = os.path.abspath(config_path)
         
-        # Use default tools if none provided
-        if tools is None:
-            tools = [] # self._get_default_tools()
-        
         try:
             # Create new agent instance
-            self._agent = ReActAgent(config_path=config_path, tools=tools)
+            self._agent = ReActAgent(config_path=config_path)
+            # Initialize the agent with tools and model
+            await self._agent.initialize()
             self._config_path = config_path
             
             self.logger.info(
                 f"Agent initialized successfully: {self._agent.config.metadata.name} "
-                f"with {len(tools)} tools from {config_path}"
+                f"from {config_path}"
             )
             return self._agent
             
@@ -134,10 +131,9 @@ class AgentManager:
             "model_provider": config.model.provider.value,
             "model_name": config.model.name,
             "tools_count": len(self._agent.tools),
-            "memory_enabled": self._agent.memory_enabled,
         }
     
-    def reload_agent(self, config_path: Optional[str] = None) -> ReActAgent:
+    async def reload_agent(self, config_path: Optional[str] = None) -> ReActAgent:
         """
         Reload agent with same or new configuration.
         
@@ -151,7 +147,7 @@ class AgentManager:
         if config_path is None:
             raise ConfigError("No config path available for reload")
         
-        return self.initialize_agent(config_path, force_reload=True)
+        return await self.initialize_agent(config_path, force_reload=True)
     
     def shutdown(self):
         """Shutdown and cleanup agent."""
@@ -161,17 +157,8 @@ class AgentManager:
             self._agent = None
             self._config_path = None
     
-    def _get_default_tools(self) -> List:
-        """Get default tool instances."""
-        return [
-            Calculator(),
-            WebSearch(), 
-            KnowledgeBaseSearch(),
-            FileManager()
-        ]
-    
     @classmethod
-    def create_from_env(cls, env_var: str = "AGENT_CONFIG_PATH", default_path: str = "examples/configs/openai_compatible.yaml") -> 'AgentManager':
+    async def create_from_env(cls, env_var: str = "AGENT_CONFIG_PATH", default_path: str = "examples/configs/openai_compatible.yaml") -> 'AgentManager':
         """
         Create and initialize agent manager from environment variable.
         
@@ -184,5 +171,22 @@ class AgentManager:
         """
         config_path = os.getenv(env_var, default_path)
         manager = cls()
-        manager.initialize_agent(config_path)
-        return manager 
+        await manager.initialize_agent(config_path)
+        return manager
+
+
+# Global agent manager instance
+_agent_manager: Optional[AgentManager] = None
+
+
+def get_agent_manager() -> AgentManager:
+    """
+    Get the global agent manager instance.
+    
+    Returns:
+        AgentManager: Global agent manager
+    """
+    global _agent_manager
+    if _agent_manager is None:
+        _agent_manager = AgentManager()
+    return _agent_manager 

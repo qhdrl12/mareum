@@ -72,7 +72,7 @@ test_model() {
 
 # Function to update config file
 update_config() {
-    local config_file="examples/configs/openai_comaptible.yaml"
+    local config_file="examples/configs/openai_compatible.yaml"
     print_info "Updating config file: $config_file"
     
     # Backup original
@@ -124,7 +124,7 @@ EOF
 
 # Function to restore config
 restore_config() {
-    local config_file="examples/configs/openai_comaptible.yaml"
+    local config_file="examples/configs/openai_compatible.yaml"
     if [ -f "$config_file.backup" ]; then
         mv "$config_file.backup" "$config_file"
         print_success "Config restored from backup"

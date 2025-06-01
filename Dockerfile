@@ -33,8 +33,7 @@ FROM python:3.12-slim as production
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONPATH=/app
-ENV AGENT_CONFIG_PATH=/app/examples/configs/openai_comaptible.yaml
-# ENV AGENT_CONFIG_PATH=/app/examples/configs/openai_comaptible.yaml
+ENV AGENT_CONFIG_PATH=/app/examples/configs/openai_compatible.yaml
 
 # Create non-root user
 RUN groupadd -r appuser && useradd -r -g appuser appuser

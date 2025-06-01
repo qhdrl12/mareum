@@ -1,0 +1,44 @@
+metadata:
+  name: "mcp-local-test-agent"
+  version: "1.0.0"
+  owner: "test-team"
+  description: "ReAct agent powered by local MCP math server for testing"
+  tags: ["mcp", "tools", "local", "test", "math"]
+
+agent_type: "react"
+
+model:
+  provider: "openai_compatible"
+  name: "gpt-4o-mini"
+  api_key: "OPENAI_API_KEY"
+  base_url: "https://api.openai.com/v1"
+  parameters:
+    temperature: 0.1
+    max_tokens: 2000
+
+memory:
+  type: "simple_buffer"
+  config:
+    k: 10
+
+# Local MCP tool configuration for testing
+tools:
+  # Local math server for testing
+  - type: "mcp"
+    name: "math_tools"
+    url: "http://localhost:3001/mcp"
+    timeout: 30
+
+prompt:
+  system_prompt: |
+    You are an AI assistant with access to mathematical tools via MCP (Model Context Protocol).
+    
+    You have access to:
+    - Mathematical computation tools (add, subtract, multiply, divide, power, square_root)
+    
+    When performing calculations, ALWAYS use the available MCP tools instead of calculating yourself.
+    Be explicit about which tool you're using and show the calculation process clearly.
+    
+    Example:
+    User: "What is 15 * 23?"
+    You should: Use the multiply tool to calculate 15 * 23, then provide the result. 

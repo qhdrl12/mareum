@@ -1,12 +1,12 @@
-# Customer Support Agent Configuration Example
+# Example ReAct Agent Configuration - Simplified Tool Integration
 metadata:
-  name: "customer-support-agent"
-  description: "AI agent for customer support automation"
+  name: "example-react-agent"
   version: "1.0.0"
-  tags:
-    - "customer-support"
-    - "automation"
-    - "react"
+  owner: "langgraph-team"
+  description: "Example ReAct agent with simplified tool integration"
+  tags: ["example", "react", "tools", "mcp", "simplified"]
+
+agent_type: "react"
 
 model:
   provider: "openai"
@@ -16,37 +16,54 @@ model:
     temperature: 0.7
     max_tokens: 2000
 
-prompt:
-  system_prompt: |
-    You are a helpful customer support AI assistant. Your role is to:
-    
-    1. Help customers with their questions and issues
-    2. Search the knowledge base for relevant information
-    3. Create support tickets when necessary
-    4. Provide accurate and helpful responses
-    
-    Always be polite, professional, and helpful. If you cannot solve an issue,
-    escalate it by creating a support ticket.
-    
-    Use the available tools to:
-    - Search the knowledge base for information
-    - Look up user information when needed
-    - Create tickets for complex issues
-    
-    Remember to think step by step and explain your reasoning.
-
-# Tools configuration will be enhanced later
-tools: []
-
 memory:
   type: "simple_buffer"
   config:
-    k: 5
+    k: 10
+
+# Ultra-simplified Tool Configuration - Two types: builtin and mcp
+tools:
+  # Built-in LangChain BaseTool implementations
+  - type: "builtin"
+    name: "calculator"
+  
+  - type: "builtin"
+    name: "web_search"
+  
+  - type: "builtin"
+    name: "file_manager"
+
+  # MCP tools via streamable_http (just name + URL!)
+  - type: "mcp"
+    name: "weather"
+    url: "http://weather-service:8000/mcp"
+
+  - type: "mcp"
+    name: "math_tools"
+    url: "http://math-service:8000/mcp"
+
+  - type: "mcp"
+    name: "file_service"
+    url: "http://file-tools:8000/mcp"
+    timeout: 45
 
 knowledge:
   provider: "faiss"
-  collection_name: "customer-support-kb"
+  collection_name: "agent_knowledge"
   embedding_model: "text-embedding-ada-002"
   search_config:
     top_k: 5
-    score_threshold: 0.7 
+    score_threshold: 0.7
+
+prompt:
+  system_prompt: |
+    You are a helpful AI assistant with access to various tools.
+    
+    Available tools:
+    - Built-in tools: calculator, web search, file management
+    - Weather services via MCP (all available tools)
+    - Math tools via MCP (all available tools)
+    - File operations via MCP (all available tools)
+    
+    Use these tools intelligently to answer questions and solve problems.
+    Always explain your reasoning and the steps you take.

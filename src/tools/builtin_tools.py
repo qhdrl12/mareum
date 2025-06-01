@@ -1,7 +1,11 @@
 """
-Basic tools for ReAct agents.
+Built-in tools for ReAct agents.
 
-This module provides simple example tools that can be used with ReAct agents.
+This module provides built-in LangChain BaseTool implementations.
+Moved from agents package to avoid circular imports.
+
+이 모듈은 내장된 LangChain BaseTool 구현을 제공합니다.
+순환 참조를 피하기 위해 agents 패키지에서 이동되었습니다.
 """
 
 from typing import Optional
@@ -180,4 +184,4 @@ def get_default_tools():
         WebSearch(),
         KnowledgeBaseSearch(),
         FileManager(),
-    ]
+    ] 

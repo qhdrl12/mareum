@@ -1,20 +1,34 @@
 # LangGraph ReAct Agent Configuration Schema
 
-A comprehensive YAML/JSON schema validation system for configuring ReAct (Reasoning and Acting) agents using LangGraph.
+A comprehensive YAML/JSON schema validation system for configuring ReAct (Reasoning and Acting) agents using LangGraph with **simplified tool integration**.
 
 ## 🎯 Overview
 
-This project provides a robust schema validation system that allows users to define AI agents through simple YAML configuration files. The system focuses on practical, implementable features rather than comprehensive coverage.
+This project provides a robust schema validation system that allows users to define AI agents through simple YAML configuration files. The system focuses on practical, implementable features with **streamlined tool integration** supporting just two types: **Built-in LangChain BaseTool implementations** and **MCP tools via streamable_http**.
 
-## 🚀 Supported Providers
+## ✨ Key Features
+
+- 📝 **YAML/JSON Configuration**: Define agents through simple configuration files
+- 🔧 **Multiple LLM Providers**: OpenAI, AWS Bedrock, OpenAI-compatible APIs
+- 🧠 **Memory Management**: Conversation history with configurable windows
+- 🔍 **Knowledge Base Integration**: FAISS and Milvus vector databases
+- 🛠️ **Ultra-simple Tool Integration**: Just two types - builtin and MCP
+- ⚡ **Streamable HTTP Only**: Simple name + URL configuration for web UIs
+- 🎯 **Zero Configuration Overhead**: MCP servers provide all their tools automatically
+
+## 🚀 Supported Features
 
 ### LLM Providers
 - **OpenAI**: Standard OpenAI API (GPT-4, GPT-3.5-turbo, etc.)
-- **OpenAI Compatible**: vLLM and other OpenAI-compatible APIs
+- **OpenAI Compatible**: vLLM and other OpenAI-compatible APIs  
 - **AWS Bedrock**: Claude models via AWS Bedrock
 
+### Tool Integration (Simplified)
+- **Built-in Tools**: LangChain BaseTool implementations (calculator, web_search, file_manager, knowledge_search)
+- **MCP Tools**: Model Context Protocol servers via streamable_http (weather, math, custom APIs)
+
 ### Memory Types
-- **Conversation Buffer Window**: Simple recent conversation history (default: 5 messages)
+- **Conversation Buffer Window**: Recent conversation history (configurable size)
 
 ### Vector Databases
 - **FAISS**: Facebook AI Similarity Search (local/in-memory)
@@ -25,108 +39,204 @@ This project provides a robust schema validation system that allows users to def
 ```
 ├── src/
 │   ├── schemas/
-│   │   └── agent_config.py      # Pydantic models for configuration
+│   │   └── agent_config.py      # Pydantic models for simplified configuration
+│   ├── core/
+│   │   └── tool_registry.py     # Simplified tool registry for builtin + MCP
+│   ├── agents/
+│   │   ├── react_agent.py       # ReAct agent with simplified tools
+│   │   └── tools.py             # Built-in LangChain BaseTool implementations
 │   └── utils/
 │       └── config_loader.py     # Configuration loading utilities
-│   ├── core/
-│   │   └── config_parser.py     # YAML configuration parser with schema validation
 ├── examples/
-│   ├── example_agent.yaml       # Basic OpenAI example
-│   ├── openai_agent.yaml         # OpenAI API example
-│   └── bedrock_agent.yaml      # AWS Bedrock Claude example
+│   ├── configs/
+│   │   ├── example_agent.yaml   # Mixed builtin + MCP example
+│   │   └── mcp_agent.yaml       # Pure MCP example
+│   └── mcp_servers/
+│       └── math_server.py       # Example MCP server
 └── tests/
-    ├── test_config_parser.py    # Unit tests for ConfigParser
-    └── test_integration.py      # Integration tests for the system
+    ├── test_config_parser.py    # Unit tests
+    └── test_integration.py      # Integration tests
 ```
 
 ## 🛠️ Installation
 
 ```bash
-# Install dependencies
-uv add pydantic pyyaml
+# Install core dependencies
+pip install pydantic pyyaml langchain langgraph
 
-# Or with pip
-pip install pydantic pyyaml
+# Install MCP integration
+pip install langchain-mcp-adapters
+
+# Or install all at once
+pip install -r requirements.txt
 ```
 
 ## 📝 Configuration Examples
 
-### OpenAI Agent
+### Simplified Tool Integration Example
 ```yaml
 metadata:
   name: "my-agent"
-  description: "AI assistant using OpenAI"
+  description: "AI assistant with simplified tool integration"
 
 model:
   provider: "openai"
   name: "gpt-4"
-  credentials_key: "OPENAI_API_KEY"
-  parameters:
-    temperature: 0.7
-    max_tokens: 2000
+  api_key: "OPENAI_API_KEY"
 
-memory:
-  type: "conversation_buffer_window"
-  config:
-    k: 5
+# Two types of tools: builtin and mcp
+tools:
+  # Built-in LangChain BaseTool implementations
+  - type: "builtin"
+    name: "calculator"
+  
+  - type: "builtin"
+    name: "web_search"
+  
+  - type: "builtin"
+    name: "file_manager"
 
-knowledge:
-  provider: "faiss"
-  collection_name: "my-knowledge-base"
-  embedding_model: "text-embedding-ada-002"
+  # MCP tools via streamable_http (just name + URL!)
+  - type: "mcp"
+    name: "weather"
+    url: "http://weather-service:8000/mcp"
+
+  - type: "mcp"
+    name: "math_tools"
+    url: "http://math-service:8000/mcp"
+
+prompt:
+  system_prompt: |
+    You are a helpful AI assistant with access to built-in tools and MCP services.
+    Use these tools intelligently to answer questions and solve problems.
 ```
 
-### vLLM Agent (OpenAI Compatible)
+### Pure MCP Example
 ```yaml
 metadata:
-  name: "vllm-agent"
-  description: "Local vLLM deployment"
+  name: "mcp-only-agent"
+  description: "Agent powered entirely by MCP tools"
 
 model:
-  provider: "openai_compatible"
-  name: "llama-2-7b-chat"
-  credentials_key: "VLLM_API_KEY"
-  base_url: "http://localhost:8000/v1"
-  parameters:
-    temperature: 0.7
-    max_tokens: 1000
+  provider: "openai"
+  name: "gpt-4"
+  api_key: "OPENAI_API_KEY"
 
-memory:
-  type: "conversation_buffer_window"
-  config:
-    k: 5
+# Only MCP tools
+tools:
+  - type: "mcp"
+    name: "weather"
+    url: "http://weather-service:8000/mcp"
+
+  - type: "mcp"
+    name: "calculator"
+    url: "http://math-service:8000/mcp"
+
+  - type: "mcp"
+    name: "business_api"
+    url: "https://api.company.com/mcp"
+    timeout: 45
+
+prompt:
+  system_prompt: |
+    You are an AI assistant powered by MCP tools.
+    Use weather, math, and business API tools to help users.
+```
+
+### Built-in Tools Only Example
+```yaml
+metadata:
+  name: "builtin-agent"
+  description: "Agent using only built-in tools"
+
+model:
+  provider: "openai"
+  name: "gpt-4"
+  api_key: "OPENAI_API_KEY"
+
+# Only built-in tools
+tools:
+  - type: "builtin"
+    name: "calculator"
+  
+  - type: "builtin"
+    name: "web_search"
+  
+  - type: "builtin"
+    name: "file_manager"
+  
+  - type: "builtin"
+    name: "knowledge_search"
 
 knowledge:
   provider: "faiss"
   collection_name: "local-docs"
-  embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
+  embedding_model: "text-embedding-ada-002"
+
+prompt:
+  system_prompt: |
+    You are a helpful AI assistant with built-in tools.
+    Use calculator, web search, file management, and knowledge search to help users.
 ```
 
-### AWS Bedrock Claude Agent
+## 🧪 Available Built-in Tools
+
+The system includes these LangChain BaseTool implementations:
+
+- **`calculator`**: Basic mathematical calculations
+- **`web_search`**: Web search functionality (mock implementation)
+- **`file_manager`**: File read/write/list operations
+- **`knowledge_search`**: Knowledge base search functionality
+
+## 🔧 Usage
+
+### Basic Agent Usage
+```python
+from src.agents.react_agent import ReActAgent
+
+# Load agent from configuration
+agent = ReActAgent("examples/configs/example_agent.yaml")
+
+# Initialize and run
+await agent.initialize()
+response = await agent.run("What is 25 + 37?")
+print(response["response"])  # Built-in calculator or MCP math tools will be used
+```
+
+### MCP Server Setup
+
+Create a simple MCP server (see `examples/mcp_servers/math_server.py`):
+```python
+from mcp.server.fastmcp import FastMCP
+
+mcp = FastMCP("Math Tools")
+
+@mcp.tool()
+def add(a: float, b: float) -> float:
+    """Add two numbers together."""
+    return a + b
+
+if __name__ == "__main__":
+    # Run as HTTP server for streamable_http transport
+    mcp.run(transport="streamable_http", port=8000)
+```
+
+Configure your agent:
 ```yaml
-metadata:
-  name: "bedrock-agent"
-  description: "Enterprise AWS Bedrock agent"
-
-model:
-  provider: "aws_bedrock"
-  name: "claude-3-5-sonnet-20241022"
-  credentials_key: "AWS_ACCESS_KEY_ID"
-  region: "us-east-1"
-  parameters:
-    temperature: 0.7
-    max_tokens: 2000
-
-memory:
-  type: "conversation_buffer_window"
-  config:
-    k: 5
-
-knowledge:
-  provider: "milvus"
-  credentials_key: "MILVUS_TOKEN"
-  collection_name: "enterprise-knowledge"
+tools:
+  - type: "mcp"
+    name: "math_tools"
+    url: "http://localhost:8000/mcp"
 ```
+
+### Web UI Benefits
+
+This ultra-simplified approach is perfect for web-based configuration interfaces:
+- **Minimal inputs**: Just tool type, name, and URL (for MCP)
+- **Zero complex setup**: No need for command, args, env variables, or filtering
+- **Remote deployment**: All MCP servers are HTTP-accessible
+- **Easy testing**: Can test MCP endpoints with curl/Postman
+- **Automatic discovery**: MCP servers provide all their available tools
 
 ## 🧪 Testing
 
@@ -144,47 +254,11 @@ python -m pytest tests/test_integration.py -v
 ```
 
 The test suite includes:
-- **Unit Tests (28 tests)**: ConfigParser functionality, YAML parsing, schema validation
-- **Integration Tests (12 tests)**: End-to-end configuration loading, environment variable substitution, provider-specific validation
-- ✅ All configuration files validated against schema.json
-- ✅ Environment variable substitution and default value handling
-- ✅ Provider-specific validation (OpenAI, vLLM, Bedrock)
+- **Unit Tests**: Configuration parsing, schema validation, tool registry
+- **Integration Tests**: End-to-end configuration loading, tool initialization
+- ✅ All configuration files validated against schema
+- ✅ Built-in and MCP tool integration
 - ✅ Error handling and edge cases
-
-## 🔧 Usage
-
-### Validate Configuration
-```python
-from src.core.config_parser import ConfigParser
-
-# Validate a YAML file
-parser = ConfigParser(schema_path="schema.json")
-try:
-    config_data = parser.parse_from_file("my_agent.yaml")
-    parser.validate_configuration(config_data)
-    print("✅ Configuration is valid!")
-except Exception as e:
-    print(f"❌ Validation error: {e}")
-```
-
-### Load Configuration
-```python
-from src.utils.config_loader import ConfigLoader
-
-# Load and parse configuration
-config = ConfigLoader.load_config("my_agent.yaml")
-print(f"Agent: {config['metadata']['name']}")
-print(f"Model: {config['model']['provider']}/{config['model']['name']}")
-```
-
-### Use JSON Schema
-```python
-from src.core.config_parser import ConfigParser
-
-# Use existing JSON schema for validation
-parser = ConfigParser(schema_path="schema.json")
-config_data = parser.parse_from_file("my_agent.yaml")
-```
 
 ## 🔑 Environment Variables
 
@@ -214,23 +288,23 @@ MILVUS_TOKEN=your_milvus_token
 # FAISS requires no credentials (local/in-memory)
 ```
 
-## 🎨 Features
+## 🎨 Key Benefits
 
 - **Type Safety**: Full Pydantic validation with detailed error messages
 - **Environment Variables**: Automatic substitution of `${VAR_NAME}` patterns
-- **Provider Validation**: Specific validation rules for each LLM provider
-- **Extensible**: Easy to add new providers and memory types
-- **JSON Schema Export**: Generate schemas for external tooling
-- **Comprehensive Testing**: Full test coverage with multiple provider examples
+- **Ultra-simple Tools**: Just two types - builtin LangChain tools and MCP via HTTP
+- **Web UI Ready**: Perfect for web-based agent configuration interfaces
+- **Zero Configuration Overhead**: MCP servers only need name + URL, provide all tools automatically
+- **Extensible**: Easy to add new built-in tools or MCP servers
 
 ## 🚧 Roadmap
 
-This initial version focuses on core, implementable features. Future enhancements may include:
+This version focuses on simplified, implementable tool integration. Future enhancements may include:
 
 - Additional LLM providers (Anthropic direct, Google, etc.)
 - More memory types (summary, vector-based)
 - Additional vector databases (Pinecone, ChromaDB, etc.)
-- Advanced tool configurations
+- Enhanced built-in tools
 - Streaming support
 - Multi-agent configurations
 

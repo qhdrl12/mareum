@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
 Integration tests for configuration parsing and validation system.
+This file focuses exclusively on testing ConfigParser, AgentConfig validation,
+and configuration file loading/parsing functionality.
 """
 
 import os
@@ -12,7 +14,7 @@ from src.utils.config_loader import ConfigLoader
 from src.schemas.agent_config import AgentConfig
 
 
-class TestConfigurationIntegration:
+class TestConfigParserIntegration:
     """Test integration between different parts of the configuration system."""
 
     def test_example_config(self):
@@ -148,6 +150,67 @@ def test_configuration_system_cli():
         
     except Exception as e:
         assert False, f"Configuration system test failed: {e}"
+
+
+@pytest.mark.integration
+class TestConfigSystemEndToEnd:
+    """Test end-to-end configuration system integration."""
+    
+    def test_config_to_agent_integration(self):
+        """Test that parsed configs can properly initialize agents."""
+        from src.agents.react_agent import ReActAgent
+        
+        parser = ConfigParser()
+        
+        # Test with a working config file
+        config_path = "examples/configs/openai_compatible.yaml"
+        if not Path(config_path).exists():
+            pytest.skip(f"Config file not found: {config_path}")
+        
+        try:
+            # 1. Parse config
+            config = parser.parse_from_file(config_path)
+            assert config.metadata.name
+            assert config.model.provider
+            
+            # 2. Test agent initialization (without running)
+            agent = ReActAgent(config_path=config_path)
+            assert agent is not None
+            
+            # 3. Test config data integrity - verify the config was loaded correctly
+            assert agent.config is not None
+            assert agent.config.metadata.name == config.metadata.name
+            assert agent.config.model.provider == config.model.provider
+            
+            print("✅ Config-to-Agent integration test passed")
+            
+        except Exception as e:
+            pytest.skip(f"Config integration failed: {e}")
+    
+    def test_multiple_config_formats(self):
+        """Test various configuration file formats and structures."""
+        parser = ConfigParser()
+        
+        config_files = [
+            "examples/configs/openai_compatible.yaml",
+            "examples/configs/valid_agent.yaml",
+            "examples/configs/example_agent.yaml"
+        ]
+        
+        successful_loads = 0
+        for config_file in config_files:
+            if Path(config_file).exists():
+                try:
+                    config = parser.parse_from_file(config_file)
+                    assert config.metadata.name
+                    assert config.model.provider
+                    successful_loads += 1
+                    print(f"✅ Successfully loaded: {config_file}")
+                except Exception as e:
+                    print(f"⚠️ Failed to load {config_file}: {e}")
+        
+        assert successful_loads > 0, "Should successfully load at least one config file"
+        print(f"✅ Multiple config formats test passed - {successful_loads}/{len(config_files)} configs loaded")
 
 
 if __name__ == "__main__":

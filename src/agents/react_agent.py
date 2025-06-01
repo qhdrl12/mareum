@@ -1,374 +1,229 @@
 """
-ReAct Agent implementation using LangGraph's prebuilt create_react_agent.
+ReAct Agent implementation with simplified tool integration.
 
-This module implements a ReAct (Reasoning and Acting) agent that can:
-1. Process user input
-2. Reason about the required actions
-3. Execute tools/actions
-4. Provide responses based on results
+This module implements ReAct (Reasoning and Acting) agents using LangGraph
+with support for built-in LangChain BaseTool implementations and MCP tools
+via streamable_http.
+
+이 모듈은 내장된 LangChain BaseTool 구현과 streamable_http를 통한 MCP 도구를
+지원하는 LangGraph를 사용하여 ReAct(추론 및 행동) 에이전트를 구현합니다.
 """
 
+import asyncio
 import logging
 import os
 from typing import Any, Dict, List, Optional
-from datetime import datetime
 
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from langchain_openai import ChatOpenAI
-from langchain_anthropic import ChatAnthropic
+from langchain_core.messages import BaseMessage
+from langchain_core.tools import BaseTool
 from langgraph.prebuilt import create_react_agent
 
-from ..core.config_parser import ConfigParser
+from ..schemas.agent_config import AgentConfig
+
+# Remove circular import - import inside functions instead
 
 
 class ReActAgent:
     """
-    LangGraph-based ReAct Agent implementation using prebuilt create_react_agent.
-
-    This agent follows the ReAct pattern:
-    1. Reasoning about the current situation
-    2. Acting by calling appropriate tools
-    3. Observing the results
-    4. Continuing until task completion
+    ReAct Agent with simplified tool integration.
+    
+    간소화된 도구 통합을 지원하는 ReAct 에이전트입니다.
     """
 
-    def __init__(self, config_path: str, tools: Optional[List] = None):
+    def __init__(self, config_path: Optional[str] = None, config: Optional[AgentConfig] = None):
         """
-        Initialize the ReAct Agent.
+        Initialize ReAct agent.
         
         Args:
-            config_path: Path to the agent configuration file
-            tools: Optional list of tools to use with the agent
+            config_path: Path to YAML configuration file
+            config: Pre-loaded AgentConfig object
         """
-        self.logger = logging.getLogger(__name__)
-
-        # Load configuration
-        parser = ConfigParser()
-        self.config = parser.parse_from_file(config_path)
-
-        # Initialize LLM based on provider
-        self._initialize_llm()
-
-        # Initialize tools
-        self.tools = tools or []
-
-        # Initialize memory
-        self.conversation_history = []
-        memory_config = self.config.memory
-        self.memory_enabled = memory_config is not None
-
-        # Create the ReAct agent using LangGraph's prebuilt function
-        self.agent = create_react_agent(model=self.llm, tools=self.tools)
-
-        self.logger.info(f"ReAct Agent initialized with {len(self.tools)} tools")
-
-    def _add_to_memory(self, role: str, content: str):
-        """Add a message to the conversation memory."""
-        if not self.memory_enabled:
-            self.logger.debug("Memory disabled - skipping memory update")
-            return
-
-        self.conversation_history.append(
-            {"role": role, "content": content, "timestamp": datetime.now().isoformat()}
-        )
-
-        # Keep only the last max_messages (default 10)
-        max_messages = 10
-        if self.config.memory and hasattr(self.config.memory, 'config') and self.config.memory.config:
-            max_messages = self.config.memory.config.get('k', 10)
-
-        if len(self.conversation_history) > max_messages:
-            old_count = len(self.conversation_history)
-            self.conversation_history = self.conversation_history[-max_messages:]
-            self.logger.info(
-                f"Memory buffer trimmed: {old_count} -> {len(self.conversation_history)} messages"
-            )
-
-        self.logger.info(
-            f"Memory updated: {role} message added (total: {len(self.conversation_history)}/{max_messages} messages)"
-        )
-
-    def _get_conversation_context(self) -> str:
-        """Get conversation context for the current request."""
-        if not self.memory_enabled:
-            self.logger.debug("Memory disabled - no conversation context available")
-            return ""
-
-        if not self.conversation_history:
-            self.logger.debug("Memory enabled but conversation history is empty")
-            return ""
-
-        context_parts = []
-        for msg in self.conversation_history:
-            role_prefix = "User" if msg["role"] == "human" else "Assistant"
-            context_parts.append(f"{role_prefix}: {msg['content']}")
-
-        context = "\n".join(context_parts) + "\n" if context_parts else ""
-        self.logger.info(
-            f"Using conversation context with {len(self.conversation_history)} messages"
-        )
-
-        return context
-
-    def get_memory_status(self) -> Dict[str, Any]:
-        """Get current memory status."""
-        return {
-            "enabled": self.memory_enabled,
-            "history_count": (
-                len(self.conversation_history) if self.memory_enabled else 0
-            ),
-        }
-
-    def _initialize_llm(self):
-        """Initialize the LLM based on configuration."""
-        model_config = self.config.model
-        provider = model_config.provider.value
-
-        # Helper function to get API key
-        def get_api_key(key_name):
-            """Get API key from environment or config."""
-            if not key_name:
-                return "not-needed"  # For testing or when key is not required
-                
-            # Check environment variable first
-            env_value = os.getenv(key_name)
-            if env_value and env_value != "test_key_for_docker_test":
-                self.logger.debug(f"Using API key from environment: {key_name}")
-                return env_value
+        if config:
+            self.config = config
+        elif config_path:
+            self.config = AgentConfig.from_yaml_file(config_path)
+        else:
+            raise ValueError("Either config_path or config must be provided")
             
-            # Check if it's a literal key (starts with sk-, etc.)
-            if isinstance(key_name, str) and (key_name.startswith('sk-') or key_name.startswith('gsk_')):
-                self.logger.debug(f"Using literal API key")
-                return key_name
-                
-            # Fallback to config value if it exists
-            if hasattr(model_config, 'api_key') and model_config.api_key:
-                self.logger.debug(f"Using API key from config")
-                return model_config.api_key
-                
-            self.logger.warning(f"No API key found for {key_name}")
-            return "not-needed"
+        self.logger = logging.getLogger(__name__)
+        self.agent = None
+        self.tools: List[BaseTool] = []
+        self.tool_registry = None
 
-        if provider == "openai":
-            api_key = get_api_key(model_config.api_key)
-            self.llm = ChatOpenAI(
+    async def initialize(self):
+        """Initialize the agent with tools and model."""
+        try:
+            # Import here to avoid circular import
+            from ..core.tool_registry import create_tool_registry
+            
+            self.logger.info(f"Initializing ReAct agent: {self.config.metadata.name}")
+            
+            # Debug: Check if tools are defined in config
+            if hasattr(self.config, 'tools') and self.config.tools:
+                self.logger.info(f"Config has {len(self.config.tools)} tools defined")
+                for tool in self.config.tools:
+                    self.logger.info(f"  - Tool: {tool.name} (type: {tool.type})")
+            else:
+                self.logger.info("No tools defined in config - agent will run without tools")
+            
+            # Initialize tools using ToolRegistry
+            self.tool_registry = create_tool_registry(self.config)
+            self.tools = await self.tool_registry.initialize()
+            
+            self.logger.info(f"ToolRegistry initialized with {len(self.tools)} tools")
+            for tool in self.tools:
+                self.logger.info(f"  - Loaded tool: {tool.name}")
+            
+            # Get LLM based on config
+            llm = self._create_llm()
+            self.logger.info(f"Created LLM: {type(llm).__name__}")
+            
+            # Create the ReAct agent
+            self.agent = create_react_agent(
+                llm, 
+                self.tools,
+                prompt=self._get_system_prompt()
+            )
+            
+            self.logger.info("ReAct agent initialization complete")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to initialize ReAct agent: {e}")
+            raise
+    
+    def _create_llm(self):
+        """Create LLM instance based on configuration."""
+        model_config = self.config.model
+        
+        # Get API key from environment variable
+        api_key = os.getenv(model_config.api_key)
+        if not api_key:
+            raise ValueError(f"Environment variable '{model_config.api_key}' not found or empty")
+        
+        if model_config.provider.value == "openai":
+            from langchain_openai import ChatOpenAI
+            return ChatOpenAI(
                 model=model_config.name,
                 api_key=api_key,
-                **model_config.parameters if model_config.parameters else {}
+                **model_config.parameters
             )
-            self.logger.info(f"Initialized OpenAI LLM: {model_config.name}")
-        elif provider == "openai_compatible":
-            # For OpenAI Compatible APIs that might not support function calling
-            api_key = get_api_key(model_config.api_key)
-            self.llm = ChatOpenAI(
+        elif model_config.provider.value == "openai_compatible":
+            from langchain_openai import ChatOpenAI
+            return ChatOpenAI(
                 model=model_config.name,
                 base_url=model_config.base_url,
                 api_key=api_key,
-                **model_config.parameters if model_config.parameters else {}
+                **model_config.parameters
             )
-            self.logger.info(
-                f"Initialized OpenAI Compatible LLM: {model_config.name} at {model_config.base_url}"
+        elif model_config.provider.value == "aws_bedrock":
+            from langchain_aws import ChatBedrock
+            return ChatBedrock(
+                model_id=model_config.name,
+                region_name=model_config.region,
+                **model_config.parameters
             )
-        elif provider == "aws_bedrock":
-            api_key = get_api_key(model_config.api_key)
-            self.llm = ChatAnthropic(
-                model=model_config.name,
-                api_key=api_key,
-                **model_config.parameters if model_config.parameters else {}
-            )
-            self.logger.info(f"Initialized AWS Bedrock LLM: {model_config.name}")
         else:
-            raise ValueError(f"Unsupported model provider: {provider}")
+            raise ValueError(f"Unsupported model provider: {model_config.provider}")
+    
+    def _get_system_prompt(self) -> str:
+        """Get system prompt from configuration."""
+        if self.config.prompt:
+            return self.config.prompt.system_prompt
+        return "You are a helpful AI assistant with access to various tools."
 
-    def _create_system_message(self):
-        """Create system message from configuration."""
-        # Get system prompt from config or use default
-        system_prompt = self.config.prompt.system_prompt or (
-            f"You are {self.config.metadata.name}, {self.config.metadata.description}. "
-            "Use the available tools to help answer questions and complete tasks. "
-            "Always reason step by step and explain your actions."
-        )
-
-        return SystemMessage(content=system_prompt)
-
-    def _create_llm_with_tools(self):
-        """Create LLM instance with bound tools for tool calling."""
-        return self.llm.bind_tools(self.tools)
-
-    async def run(self, user_input: str, **kwargs) -> Dict[str, Any]:
+    async def run(self, message: str, **kwargs) -> Dict[str, Any]:
         """
-        Run the agent with user input and return structured response.
+        Run the agent with a message.
         
         Args:
-            user_input: User's message/question
-            **kwargs: Additional arguments (chat_history, etc.)
-            
-        Returns:
-            Dict containing response and metadata
-        """
-        try:
-            # Add to memory if enabled
-            self._add_to_memory("human", user_input)
-
-            # Get conversation context if memory is enabled
-            context = self._get_conversation_context()
-
-            # Prepare input for the agent
-            if context:
-                # Include conversation context in the input
-                enhanced_input = f"{context}\nCurrent request: {user_input}"
-            else:
-                enhanced_input = user_input
-
-            # Handle chat history from request if provided
-            chat_history = kwargs.get("chat_history", [])
-            messages = []
-
-            # Add chat history if provided
-            for msg in chat_history:
-                if msg["role"] == "human":
-                    messages.append(HumanMessage(content=msg["content"]))
-                elif msg["role"] == "assistant":
-                    messages.append(AIMessage(content=msg["content"]))
-
-            # Add current user input
-            messages.append(HumanMessage(content=enhanced_input))
-
-            # Run the agent
-            agent_response = await self.agent.ainvoke({"messages": messages})
-
-            # Extract the final response
-            final_response = agent_response["messages"][-1].content if agent_response["messages"] else "No response generated."
-
-            # Extract tool usage information
-            tools_used = []
-            for msg in agent_response.get("messages", []):
-                if hasattr(msg, "tool_calls") and msg.tool_calls:
-                    for tool_call in msg.tool_calls:
-                        tool_name = getattr(tool_call, "name", "unknown")
-                        tools_used.append(tool_name)
-
-            # Remove duplicates while preserving order
-            tools_used = list(dict.fromkeys(tools_used))
-
-            # Add to memory if enabled
-            self._add_to_memory("assistant", final_response)
-
-            return {
-                "response": final_response,
-                "tools_used": tools_used,
-                "agent_response": agent_response,
-            }
-
-        except Exception as e:
-            self.logger.error(f"Error in agent run: {str(e)}")
-            return {
-                "response": f"Error: {str(e)}",
-                "tools_used": [],
-                "agent_response": None,
-            }
-
-    def run_sync(self, user_input: str, **kwargs) -> Dict[str, Any]:
-        """
-        Synchronous version of run method.
-        
-        Args:
-            user_input: User's message/question
+            message: User message to process
             **kwargs: Additional arguments
             
         Returns:
             Dict containing response and metadata
         """
-        import asyncio
-        return asyncio.run(self.run(user_input, **kwargs))
+        if not self.agent:
+            raise RuntimeError("Agent not initialized. Call initialize() first.")
+        
+        try:
+            # Run the agent
+            result = await self.agent.ainvoke({"messages": [("user", message)]})
+            
+            # Extract the final response
+            final_message = result["messages"][-1]
+            
+            # Extract tool names used during the conversation
+            tools_used = []
+            for msg in result["messages"]:
+                msg.pretty_print()
 
-    def stream(self, user_input: str, **kwargs):
+                if hasattr(msg, 'tool_calls') and msg.tool_calls:
+                    for tool_call in msg.tool_calls:
+                        # Tool calls can be dicts with 'name' key or objects with 'name' attribute
+                        tool_name = None
+                        if isinstance(tool_call, dict) and 'name' in tool_call:
+                            tool_name = tool_call['name']
+                        elif hasattr(tool_call, 'name'):
+                            tool_name = tool_call.name
+                        
+                        if tool_name and tool_name not in tools_used:
+                            tools_used.append(tool_name)
+            
+            return {
+                "response": final_message.content,
+                "tools_used": tools_used
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error running agent: {e}")
+            raise
+
+    async def astream(self, message: str, **kwargs):
         """
-        Stream responses from the agent (synchronous).
+        Stream the agent execution with a message.
         
         Args:
-            user_input: User's message/question
+            message: User message to process
             **kwargs: Additional arguments
             
         Yields:
-            Streaming chunks from the agent
+            Streaming chunks from the agent execution
         """
-        import asyncio
+        if not self.agent:
+            raise RuntimeError("Agent not initialized. Call initialize() first.")
         
-        async def _async_stream():
-            async for chunk in self.astream(user_input, **kwargs):
+        try:
+            # Stream the agent execution
+            async for chunk in self.agent.astream({"messages": [("user", message)]}):
                 yield chunk
                 
-        # Run the async generator in the current event loop
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-        async def _collect_chunks():
-            chunks = []
-            async for chunk in self.astream(user_input, **kwargs):
-                chunks.append(chunk)
-            return chunks
-            
-        chunks = loop.run_until_complete(_collect_chunks())
-        for chunk in chunks:
-            yield chunk
-
-    async def astream(self, user_input: str, **kwargs):
-        """
-        Stream responses from the agent asynchronously.
-        
-        Args:
-            user_input: User's message/question
-            **kwargs: Additional arguments
-            
-        Yields:
-            Streaming chunks from the agent
-        """
-        try:
-            # Add to memory if enabled  
-            self._add_to_memory("human", user_input)
-
-            # Get conversation context if memory is enabled
-            context = self._get_conversation_context()
-
-            # Prepare input
-            if context:
-                enhanced_input = f"{context}\nCurrent request: {user_input}"
-            else:
-                enhanced_input = user_input
-
-            # Prepare messages
-            messages = [HumanMessage(content=enhanced_input)]
-
-            # Stream from agent
-            async for chunk in self.agent.astream({"messages": messages}):
-                yield chunk
-
         except Exception as e:
-            self.logger.error(f"Error in agent stream: {str(e)}")
-            yield {"error": str(e)}
+            self.logger.error(f"Error streaming agent: {e}")
+            raise
 
-    def get_config_info(self) -> Dict[str, Any]:
-        """Get information about the agent configuration."""
-        return {
-            "metadata": {
-                "name": self.config.metadata.name,
-                "description": self.config.metadata.description,
-                "version": self.config.metadata.version,
-            },
-            "model": {
-                "provider": self.config.model.provider.value,
-                "name": self.config.model.name,
-                "base_url": getattr(self.config.model, "base_url", None),
-                "parameters": self.config.model.parameters or {},
-            },
-            "tools": [{"name": tool.name, "description": tool.description} for tool in self.tools],
-            "memory": {
-                "enabled": self.memory_enabled,
-                "type": self.config.memory.type if self.config.memory else None,
-                "config": self.config.memory.config if self.config.memory else None,
-            },
-        }
+    async def cleanup(self):
+        """Cleanup resources."""
+        if self.tool_registry:
+            await self.tool_registry.cleanup()
+        self.logger.info("ReAct agent cleanup complete")
+
+    def get_tool_info(self) -> Dict[str, Any]:
+        """Get information about loaded tools."""
+        if self.tool_registry:
+            return self.tool_registry.get_tool_info()
+        return {"total_count": 0, "tools": []}
+
+
+async def create_react_agent_from_config(config_path: str) -> ReActAgent:
+    """
+    Factory function to create and initialize a ReAct agent from configuration.
+    
+    Args:
+        config_path: Path to YAML configuration file
+        
+    Returns:
+        Initialized ReActAgent instance
+    """
+    agent = ReActAgent(config_path=config_path)
+    await agent.initialize()
+    return agent

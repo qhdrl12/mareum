@@ -156,7 +156,7 @@ show_help() {
     echo "Usage: $0 [command] [--config CONFIG_FILE]"
     echo ""
     echo "Options:"
-    echo "  --config FILE    Agent config file path (e.g., examples/configs/openai_comaptible.yaml)"
+    echo "  --config FILE    Agent config file path (e.g., examples/configs/openai_compatible.yaml)"
     echo ""
     echo "Commands:"
     echo "  build     - Build Docker image"
@@ -171,9 +171,9 @@ show_help() {
     echo ""
     echo "Examples:"
     echo "  $0 deploy"
-    echo "  $0 deploy --config examples/configs/openai_comaptible.yaml"
-    echo "  $0 run --config examples/configs/openai_comaptible.yaml"
-    echo "  $0 restart --config examples/configs/openai_comaptible.yaml"
+    echo "  $0 deploy --config examples/configs/openai_compatible.yaml"
+    echo "  $0 run --config examples/configs/openai_compatible.yaml"
+    echo "  $0 restart --config examples/configs/openai_compatible.yaml"
 }
 
 # Main command handling

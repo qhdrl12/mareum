@@ -20,7 +20,7 @@ def main():
     parser.add_argument(
         "--config",
         type=str,
-        default="examples/configs/openai_comaptible.yaml",
+        default="examples/configs/openai_compatible.yaml",
         help="Path to agent configuration file",
     )
     parser.add_argument(

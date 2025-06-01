@@ -11,42 +11,38 @@ dependencies = [
     "langchain-community>=0.0.20",
     "langgraph>=0.0.40",
     "langsmith>=0.0.80",
-    
     # LLM providers (LangChain integrations)
     "langchain-openai>=0.0.5",
     "langchain-anthropic>=0.1.0",
     "langchain-google-genai>=0.0.5",
     "langchain-mistralai>=0.0.1",
-    
     # Vector stores (LangChain integrations)
     "langchain-pinecone>=0.0.1",
     "langchain-chroma>=0.1.0",
     "langchain-weaviate>=0.0.1",
-    
     # Core web framework
     "fastapi>=0.100.0",
     "uvicorn>=0.20.0",
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
-    
     # Configuration and validation
     "pyyaml>=6.0",
     "jsonschema>=4.17.0",
     "python-multipart>=0.0.6",
-    
     # Database and caching
     "sqlalchemy>=2.0.0",
     "alembic>=1.10.0",
     "redis>=4.5.0",
-    
     # Monitoring and logging
     "prometheus-client>=0.16.0",
     "structlog>=23.0.0",
-    
     # Security
     "python-jose[cryptography]>=3.3.0",
     "passlib[bcrypt]>=1.7.4",
     "python-dotenv>=1.0.0",
+    "langchain-mcp-adapters>=0.1.4",
+    "fastmcp>=2.5.2",
+    "psutil>=7.0.0",
 ]
 
 [project.optional-dependencies]
