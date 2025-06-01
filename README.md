@@ -1,313 +1,245 @@
-# LangGraph ReAct Agent Configuration Schema
+# LangGraph Test Project
 
-A comprehensive YAML/JSON schema validation system for configuring ReAct (Reasoning and Acting) agents using LangGraph with **simplified tool integration**.
+A **practical ReAct agent implementation** using LangGraph with streamlined tool integration and Docker deployment support.
 
 ## 🎯 Overview
 
-This project provides a robust schema validation system that allows users to define AI agents through simple YAML configuration files. The system focuses on practical, implementable features with **streamlined tool integration** supporting just two types: **Built-in LangChain BaseTool implementations** and **MCP tools via streamable_http**.
+This project demonstrates a working ReAct (Reasoning and Acting) agent implementation using LangGraph with support for built-in tools and MCP (Model Context Protocol) integration. The focus is on **simplicity and deployability** rather than comprehensive feature coverage.
 
 ## ✨ Key Features
 
-- 📝 **YAML/JSON Configuration**: Define agents through simple configuration files
-- 🔧 **Multiple LLM Providers**: OpenAI, AWS Bedrock, OpenAI-compatible APIs
-- 🧠 **Memory Management**: Conversation history with configurable windows
-- 🔍 **Knowledge Base Integration**: FAISS and Milvus vector databases
-- 🛠️ **Ultra-simple Tool Integration**: Just two types - builtin and MCP
-- ⚡ **Streamable HTTP Only**: Simple name + URL configuration for web UIs
-- 🎯 **Zero Configuration Overhead**: MCP servers provide all their tools automatically
+- 🤖 **ReAct Agent**: LangGraph-based reasoning and acting agent
+- 🛠️ **Dual Tool Support**: Built-in LangChain tools + MCP tools via HTTP
+- 🐳 **Docker Ready**: Complete containerization with docker-compose
+- 🔧 **OpenAI Integration**: GPT-4 and other OpenAI models
+- 📝 **YAML Configuration**: Simple agent configuration via YAML
+- 🌐 **FastAPI Server**: RESTful API for web integration
+- 📊 **Health Monitoring**: Built-in health checks and logging
 
-## 🚀 Supported Features
+## 🚀 Quick Start
 
-### LLM Providers
-- **OpenAI**: Standard OpenAI API (GPT-4, GPT-3.5-turbo, etc.)
-- **OpenAI Compatible**: vLLM and other OpenAI-compatible APIs  
-- **AWS Bedrock**: Claude models via AWS Bedrock
+### Option 1: Docker Compose (Recommended)
+```bash
+# Clone and setup
+git clone <repository>
+cd langgraph-test
 
-### Tool Integration (Simplified)
-- **Built-in Tools**: LangChain BaseTool implementations (calculator, web_search, file_manager, knowledge_search)
-- **MCP Tools**: Model Context Protocol servers via streamable_http (weather, math, custom APIs)
+# Create environment file
+echo "OPENAI_API_KEY=your_openai_api_key" > .env
 
-### Memory Types
-- **Conversation Buffer Window**: Recent conversation history (configurable size)
+# Start everything with MCP math tools
+make compose-up
 
-### Vector Databases
-- **FAISS**: Facebook AI Similarity Search (local/in-memory)
-- **Milvus**: Open-source vector database
+# Test the API
+curl -X POST "http://localhost:8000/chat" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What is 15 + 23?"}'
+```
+
+### Option 2: Single Container
+```bash
+# Deploy with built-in tools only
+make docker-deploy
+
+# Deploy with MCP tools
+make docker-deploy CONFIG=mcp_agent.yaml
+```
 
 ## 📁 Project Structure
 
 ```
 ├── src/
-│   ├── schemas/
-│   │   └── agent_config.py      # Pydantic models for simplified configuration
-│   ├── core/
-│   │   └── tool_registry.py     # Simplified tool registry for builtin + MCP
 │   ├── agents/
-│   │   ├── react_agent.py       # ReAct agent with simplified tools
-│   │   └── tools.py             # Built-in LangChain BaseTool implementations
-│   └── utils/
-│       └── config_loader.py     # Configuration loading utilities
+│   │   └── react_agent.py       # ReAct agent implementation
+│   ├── api/
+│   │   ├── app.py              # FastAPI application
+│   │   └── models.py           # API request/response models
+│   ├── core/
+│   │   ├── tool_registry.py    # Tool loading and management
+│   │   └── config_parser.py    # Configuration processing
+│   ├── schemas/
+│   │   └── agent_config.py     # Pydantic configuration models
+│   └── tools/
+│       └── builtin_tools.py    # Built-in LangChain tools
 ├── examples/
-│   ├── configs/
-│   │   ├── example_agent.yaml   # Mixed builtin + MCP example
-│   │   └── mcp_agent.yaml       # Pure MCP example
+│   ├── configs/                # Agent configuration examples
 │   └── mcp_servers/
-│       └── math_server.py       # Example MCP server
-└── tests/
-    ├── test_config_parser.py    # Unit tests
-    └── test_integration.py      # Integration tests
+│       └── math_server.py      # Example MCP math server
+├── scripts/
+│   ├── docker.sh              # Docker management script
+│   └── run_api_server.py      # API server runner
+├── docker-compose.yml         # Multi-service Docker setup
+├── Dockerfile                 # Main API server image
+├── Dockerfile.mcp            # MCP server image
+└── Makefile                  # Development and deployment commands
 ```
 
-## 🛠️ Installation
+## 🛠️ Supported Features
 
-```bash
-# Install core dependencies
-pip install pydantic pyyaml langchain langgraph
+### Current Implementation
+- **LLM Providers**: OpenAI, OpenAI-compatible APIs
+- **Tool Types**: 
+  - Built-in: `calculator`, `web_search`, `file_manager`
+  - MCP: Math tools via HTTP (extendable)
+- **Memory**: Simple buffer and conversation window
+- **Deployment**: Docker, docker-compose
+- **API**: FastAPI with health checks
 
-# Install MCP integration
-pip install langchain-mcp-adapters
-
-# Or install all at once
-pip install -r requirements.txt
-```
-
-## 📝 Configuration Examples
-
-### Simplified Tool Integration Example
+### Configuration Schema
 ```yaml
 metadata:
   name: "my-agent"
-  description: "AI assistant with simplified tool integration"
+  description: "ReAct agent with tool integration"
 
 model:
   provider: "openai"
   name: "gpt-4"
   api_key: "OPENAI_API_KEY"
+  parameters:
+    temperature: 0.7
+    max_tokens: 1000
 
-# Two types of tools: builtin and mcp
 tools:
-  # Built-in LangChain BaseTool implementations
+  # Built-in LangChain tools
   - type: "builtin"
     name: "calculator"
   
-  - type: "builtin"
-    name: "web_search"
-  
-  - type: "builtin"
-    name: "file_manager"
-
-  # MCP tools via streamable_http (just name + URL!)
-  - type: "mcp"
-    name: "weather"
-    url: "http://weather-service:8000/mcp"
-
+  # MCP tools via HTTP
   - type: "mcp"
     name: "math_tools"
-    url: "http://math-service:8000/mcp"
+    url: "http://mcp-server:3001/mcp"
+    timeout: 30
 
 prompt:
   system_prompt: |
-    You are a helpful AI assistant with access to built-in tools and MCP services.
-    Use these tools intelligently to answer questions and solve problems.
+    You are a helpful AI assistant with access to various tools.
+    Use these tools to solve problems and answer questions accurately.
 ```
 
-### Pure MCP Example
-```yaml
-metadata:
-  name: "mcp-only-agent"
-  description: "Agent powered entirely by MCP tools"
+## 🧪 Available Tools
 
-model:
-  provider: "openai"
-  name: "gpt-4"
-  api_key: "OPENAI_API_KEY"
-
-# Only MCP tools
-tools:
-  - type: "mcp"
-    name: "weather"
-    url: "http://weather-service:8000/mcp"
-
-  - type: "mcp"
-    name: "calculator"
-    url: "http://math-service:8000/mcp"
-
-  - type: "mcp"
-    name: "business_api"
-    url: "https://api.company.com/mcp"
-    timeout: 45
-
-prompt:
-  system_prompt: |
-    You are an AI assistant powered by MCP tools.
-    Use weather, math, and business API tools to help users.
-```
-
-### Built-in Tools Only Example
-```yaml
-metadata:
-  name: "builtin-agent"
-  description: "Agent using only built-in tools"
-
-model:
-  provider: "openai"
-  name: "gpt-4"
-  api_key: "OPENAI_API_KEY"
-
-# Only built-in tools
-tools:
-  - type: "builtin"
-    name: "calculator"
-  
-  - type: "builtin"
-    name: "web_search"
-  
-  - type: "builtin"
-    name: "file_manager"
-  
-  - type: "builtin"
-    name: "knowledge_search"
-
-knowledge:
-  provider: "faiss"
-  collection_name: "local-docs"
-  embedding_model: "text-embedding-ada-002"
-
-prompt:
-  system_prompt: |
-    You are a helpful AI assistant with built-in tools.
-    Use calculator, web search, file management, and knowledge search to help users.
-```
-
-## 🧪 Available Built-in Tools
-
-The system includes these LangChain BaseTool implementations:
-
-- **`calculator`**: Basic mathematical calculations
+### Built-in Tools
+- **`calculator`**: Basic mathematical operations
 - **`web_search`**: Web search functionality (mock implementation)
-- **`file_manager`**: File read/write/list operations
-- **`knowledge_search`**: Knowledge base search functionality
+- **`file_manager`**: File read/write operations
 
-## 🔧 Usage
+### MCP Tools (via HTTP)
+- **Math Server**: Addition, subtraction, multiplication, division, power, square root
+- Extensible to any HTTP-accessible MCP server
 
-### Basic Agent Usage
+## 🔧 Usage Examples
+
+### API Integration
+```bash
+# Start services
+make compose-up
+
+# Chat with math tools
+curl -X POST "http://localhost:8000/chat" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Calculate the square root of 144 and multiply by 5"}'
+
+# Response includes tool usage
+{
+  "response": "The square root of 144 is 12, and 12 multiplied by 5 equals 60.",
+  "tools_used": ["square_root", "multiply"]
+}
+```
+
+### Python Integration
 ```python
 from src.agents.react_agent import ReActAgent
 
 # Load agent from configuration
-agent = ReActAgent("examples/configs/example_agent.yaml")
-
-# Initialize and run
+agent = ReActAgent("examples/configs/mcp_agent.yaml")
 await agent.initialize()
-response = await agent.run("What is 25 + 37?")
-print(response["response"])  # Built-in calculator or MCP math tools will be used
+
+# Run with tool usage
+response = await agent.run("What is 157 × 89?")
+print(response["response"])  # "157 × 89 = 13,973"
+print(response["tools_used"])  # ["multiply"]
 ```
 
-### MCP Server Setup
+## 🐳 Docker Commands (via Makefile)
 
-Create a simple MCP server (see `examples/mcp_servers/math_server.py`):
-```python
-from mcp.server.fastmcp import FastMCP
+```bash
+# Development
+make install              # Install dependencies
+make test                # Run tests
+make lint                # Code linting
 
-mcp = FastMCP("Math Tools")
+# Docker (scripts/docker.sh)
+make docker-deploy       # Full deployment
+make docker-logs         # View logs
+make docker-stop         # Stop container
 
-@mcp.tool()
-def add(a: float, b: float) -> float:
-    """Add two numbers together."""
-    return a + b
+# Docker Compose
+make compose-up          # Start all services
+make compose-logs        # View all logs
+make compose-down        # Stop all services
 
-if __name__ == "__main__":
-    # Run as HTTP server for streamable_http transport
-    mcp.run(transport="streamable_http", port=8000)
+# Utilities
+make check-env           # Check environment setup
+make list-configs        # Show available configs
 ```
 
-Configure your agent:
-```yaml
-tools:
-  - type: "mcp"
-    name: "math_tools"
-    url: "http://localhost:8000/mcp"
+## 🔑 Environment Setup
+
+Create a `.env` file in the project root:
+```bash
+# Required
+OPENAI_API_KEY=your_openai_api_key
+
+# Optional
+LOG_LEVEL=INFO
 ```
 
-### Web UI Benefits
-
-This ultra-simplified approach is perfect for web-based configuration interfaces:
-- **Minimal inputs**: Just tool type, name, and URL (for MCP)
-- **Zero complex setup**: No need for command, args, env variables, or filtering
-- **Remote deployment**: All MCP servers are HTTP-accessible
-- **Easy testing**: Can test MCP endpoints with curl/Postman
-- **Automatic discovery**: MCP servers provide all their available tools
+For MCP/Cursor integration, add to `.cursor/mcp.json`:
+```json
+{
+  "env": {
+    "OPENAI_API_KEY": "your_openai_api_key"
+  }
+}
+```
 
 ## 🧪 Testing
 
-Run the comprehensive test suite:
-
 ```bash
 # Run all tests
-python -m pytest tests/ -v
+make test
 
-# Run only unit tests
-python -m pytest tests/test_config_parser.py -v
+# Test with Docker
+make docker-deploy
+curl http://localhost:8000/health
 
-# Run only integration tests
-python -m pytest tests/test_integration.py -v
+# Test MCP integration
+make compose-up
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What is 25 + 37?"}'
 ```
 
-The test suite includes:
-- **Unit Tests**: Configuration parsing, schema validation, tool registry
-- **Integration Tests**: End-to-end configuration loading, tool initialization
-- ✅ All configuration files validated against schema
-- ✅ Built-in and MCP tool integration
-- ✅ Error handling and edge cases
+## 🚧 Limitations & Future Work
 
-## 🔑 Environment Variables
+### Current Limitations
+- **LLM Providers**: Only OpenAI and compatible APIs
+- **Vector Databases**: Not yet implemented (schema defined but unused)
+- **Memory Types**: Basic implementations only
+- **Tools**: Limited built-in tools, MCP via HTTP only
 
-Set the following environment variables based on your chosen providers:
-
-### OpenAI
-```bash
-OPENAI_API_KEY=your_openai_api_key
-```
-
-### vLLM (OpenAI Compatible)
-```bash
-VLLM_API_KEY=your_vllm_api_key  # Optional for local deployments
-```
-
-### AWS Bedrock
-```bash
-AWS_ACCESS_KEY_ID=your_aws_access_key
-AWS_SECRET_ACCESS_KEY=your_aws_secret_key
-```
-
-### Vector Databases
-```bash
-# For Milvus
-MILVUS_TOKEN=your_milvus_token
-
-# FAISS requires no credentials (local/in-memory)
-```
-
-## 🎨 Key Benefits
-
-- **Type Safety**: Full Pydantic validation with detailed error messages
-- **Environment Variables**: Automatic substitution of `${VAR_NAME}` patterns
-- **Ultra-simple Tools**: Just two types - builtin LangChain tools and MCP via HTTP
-- **Web UI Ready**: Perfect for web-based agent configuration interfaces
-- **Zero Configuration Overhead**: MCP servers only need name + URL, provide all tools automatically
-- **Extensible**: Easy to add new built-in tools or MCP servers
-
-## 🚧 Roadmap
-
-This version focuses on simplified, implementable tool integration. Future enhancements may include:
-
-- Additional LLM providers (Anthropic direct, Google, etc.)
-- More memory types (summary, vector-based)
-- Additional vector databases (Pinecone, ChromaDB, etc.)
-- Enhanced built-in tools
-- Streaming support
-- Multi-agent configurations
+### Roadmap
+- Additional LLM providers (Anthropic, Google, Mistral)
+- Vector database integration (FAISS, Milvus)
+- Enhanced memory management
+- More built-in tools
+- WebSocket support for MCP
+- Streaming responses
 
 ## 📄 License
 
 MIT License - see LICENSE file for details.
+
+---
+
+**Note**: This is a **practical implementation** focused on deployability and real-world usage rather than comprehensive feature coverage. The configuration schema supports more features than currently implemented to enable future extensibility.
