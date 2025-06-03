@@ -141,10 +141,9 @@ async def stream_chat_with_agent(request: AgentRequest):
                 from src.schemas.streaming import parse_chunk
                 
                 async for chunk in agent.astream(request.message, stream_mode="messages"):
-                    print(f"chunk: {chunk}")
+                    print(f"event_generatorchunk: {chunk}")
                     # Parse chunk using our simplified logic
                     parsed = parse_chunk(chunk)
-                    print(f"parsed: {parsed}")
                     if parsed:  # Only send meaningful data
                         yield parsed.to_sse()
                 
