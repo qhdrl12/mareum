@@ -114,7 +114,7 @@ async def chat_with_agent(request: AgentRequest):
 
         return AgentResponse(
             response=result["response"],
-            tools_used=result.get("tools_used", []),
+            tool_calls=result.get("tool_calls", []),
             metadata={
                 "config_path": agent_manager._config_path,
                 "timestamp": datetime.now().isoformat(),
@@ -130,83 +130,43 @@ async def chat_with_agent(request: AgentRequest):
 
 @app.post("/chat/stream")
 async def stream_chat_with_agent(request: AgentRequest):
-    """Stream chat with the ReAct agent."""
+    """Stream chat with the ReAct agent in SSE format."""
     try:
         agent_manager = get_agent_manager()
         agent = agent_manager.get_agent()
 
-        async def generate_stream():
-            """Generate streaming response."""
-            tools_used = []
+        async def event_generator():
             try:
-                # Process the request with streaming using astream
-                async for chunk in agent.astream(request.message):
-                    # Track tools used in the chunk
-                    if isinstance(chunk, dict) and "messages" in chunk:
-                        for msg in chunk["messages"]:
-                            if hasattr(msg, "tool_calls") and msg.tool_calls:
-                                for tool_call in msg.tool_calls:
-                                    if hasattr(tool_call, "name"):
-                                        tools_used.append(tool_call.name)
-                                    elif (
-                                        isinstance(tool_call, dict)
-                                        and "name" in tool_call
-                                    ):
-                                        tools_used.append(tool_call["name"])
-
-                    # Handle different types of chunks
-                    content = ""
-                    if isinstance(chunk, dict):
-                        if "messages" in chunk and chunk["messages"]:
-                            last_message = chunk["messages"][-1]
-                            if hasattr(last_message, "content"):
-                                content = last_message.content
-                            else:
-                                content = str(last_message)
-                        else:
-                            content = str(chunk)
-                    else:
-                        content = str(chunk)
-
-                    chunk_data = AgentStreamChunk(
-                        chunk=content,
-                        is_final=False,
-                        tools_used=[],
-                        metadata={},
-                    )
-                    yield f"data: {chunk_data.model_dump_json()}\n\n"
-
-                # Remove duplicates while preserving order
-                tools_used = list(dict.fromkeys(tools_used))
-
-                # Send final chunk with tools used
-                final_chunk = AgentStreamChunk(
-                    chunk="", is_final=True, tools_used=tools_used, metadata={}
-                )
-                yield f"data: {final_chunk.model_dump_json()}\n\n"
-
+                # Import here to avoid circular imports
+                from src.schemas.streaming import parse_chunk
+                
+                async for chunk in agent.astream(request.message, stream_mode="messages"):
+                    print(f"chunk: {chunk}")
+                    # Parse chunk using our simplified logic
+                    parsed = parse_chunk(chunk)
+                    print(f"parsed: {parsed}")
+                    if parsed:  # Only send meaningful data
+                        yield parsed.to_sse()
+                
             except Exception as e:
-                error_chunk = AgentStreamChunk(
-                    chunk="",
-                    is_final=True,
-                    tools_used=tools_used,
-                    metadata={"error": str(e)},
-                )
-                yield f"data: {error_chunk.model_dump_json()}\n\n"
+                logger.error(f"Error in streaming: {e}")
+                # Send error as SSE
+                yield f'data: {{"type": "error", "data": "{str(e)}", "tool": null}}\n\n'
 
         return StreamingResponse(
-            generate_stream(),
-            media_type="text/event-stream",
+            event_generator(),
+            media_type="text/plain",
             headers={
-                "Cache-Control": "no-cache",
+                "Cache-Control": "no-cache", 
                 "Connection": "keep-alive",
-                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Origin": "*"
             },
         )
 
     except Exception as e:
-        logger.error(f"Stream processing failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to process stream: {str(e)}")
+        logger.error(f"Error in stream_chat_with_agent: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @app.get("/agent/info")

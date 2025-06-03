@@ -91,6 +91,18 @@ class ReActAgent:
             self.logger.error(f"Failed to initialize ReAct agent: {e}")
             raise
     
+    def get_agent(self):
+        """
+        Get the underlying LangGraph agent for direct access.
+        
+        Returns:
+            The LangGraph ReAct agent instance
+        """
+        if not self.agent:
+            raise RuntimeError("Agent not initialized. Call initialize() first.")
+        return self.agent
+
+
     def _create_llm(self):
         """Create LLM instance based on configuration."""
         model_config = self.config.model
@@ -152,53 +164,145 @@ class ReActAgent:
             # Extract the final response
             final_message = result["messages"][-1]
             
-            # Extract tool names used during the conversation
-            tools_used = []
+            # Extract detailed tool call information
+            tool_calls = []
+            
             for msg in result["messages"]:
                 msg.pretty_print()
 
+                # Handle AI messages with tool calls
                 if hasattr(msg, 'tool_calls') and msg.tool_calls:
                     for tool_call in msg.tool_calls:
-                        # Tool calls can be dicts with 'name' key or objects with 'name' attribute
+                        # Extract tool name and arguments
                         tool_name = None
-                        if isinstance(tool_call, dict) and 'name' in tool_call:
-                            tool_name = tool_call['name']
+                        tool_args = {}
+                        
+                        if isinstance(tool_call, dict):
+                            tool_name = tool_call.get('name')
+                            tool_args = tool_call.get('args', {})
                         elif hasattr(tool_call, 'name'):
                             tool_name = tool_call.name
+                            tool_args = getattr(tool_call, 'args', {})
                         
-                        if tool_name and tool_name not in tools_used:
-                            tools_used.append(tool_name)
+                        if tool_name:
+                            # Create detailed tool call info
+                            tool_call_info = {
+                                "name": tool_name,
+                                "args": tool_args,
+                                "result": None,
+                                "error": None
+                            }
+                            tool_calls.append(tool_call_info)
+                
+                # Handle tool result messages
+                elif hasattr(msg, 'content') and hasattr(msg, 'name'):
+                    # This is a tool result message
+                    tool_name = getattr(msg, 'name', None)
+                    if tool_name:
+                        # Find the corresponding tool call and update its result
+                        for tool_call_info in reversed(tool_calls):
+                            if tool_call_info["name"] == tool_name and tool_call_info["result"] is None:
+                                tool_call_info["result"] = msg.content
+                                break
             
             return {
                 "response": final_message.content,
-                "tools_used": tools_used
+                "tool_calls": tool_calls
             }
             
         except Exception as e:
             self.logger.error(f"Error running agent: {e}")
             raise
 
+
+
     async def astream(self, message: str, **kwargs):
         """
         Stream the agent execution with a message.
+        
+        This is the primary streaming method that returns LangGraph's native format:
+        each chunk is a tuple of (message, metadata) where:
+        - message: AIMessage, ToolMessage, or other LangChain message types
+        - metadata: dict with langgraph_step, langgraph_node, etc.
+        
+        Example usage:
+            async for chunk in agent.astream("1 + 15를 계산해줘"):
+                message, metadata = chunk
+                
+                # Content streaming
+                if hasattr(message, 'content') and message.content:
+                    print(f"Content: {message.content}")
+                
+                # Tool call detection
+                elif hasattr(message, 'tool_calls') and message.tool_calls:
+                    for tc in message.tool_calls:
+                        print(f"Tool: {tc['name']}({tc['args']})")
+                
+                # Tool result
+                elif hasattr(message, 'name') and hasattr(message, 'content'):
+                    print(f"Tool result: {message.name} -> {message.content}")
+        
+        Client helper example:
+            def parse_chunk(chunk):
+                message, metadata = chunk
+                return {
+                    "type": "tool_result" if hasattr(message, 'name') and hasattr(message, 'content')
+                           else "tool_call" if hasattr(message, 'tool_calls') and message.tool_calls
+                           else "content" if hasattr(message, 'content') and message.content
+                           else "metadata",
+                    "content": getattr(message, 'content', ''),
+                    "message": message,
+                    "metadata": metadata
+                }
+        
+        For maximum performance, consider using get_agent().astream() directly.
+        
+        Args:
+            message: User message to process
+            **kwargs: Additional arguments (passed to LangGraph)
+            
+        Yields:
+            (message, metadata) tuples from LangGraph agent execution
+        """
+        if not self.agent:
+            raise RuntimeError("Agent not initialized. Call initialize() first.")
+        
+        try:
+            # Direct passthrough to LangGraph agent streaming
+            async for chunk in self.agent.astream({"messages": [("user", message)]}, **kwargs):
+                yield chunk
+                
+        except Exception as e:
+            self.logger.error(f"Error streaming agent: {e}")
+            raise
+
+    async def astream_events(self, message: str, **kwargs):
+        """
+        Stream fine-grained events from the agent execution.
+        
+        This provides the most detailed streaming information including
+        token-level streaming and internal agent events.
         
         Args:
             message: User message to process
             **kwargs: Additional arguments
             
         Yields:
-            Streaming chunks from the agent execution
+            Event dictionaries from LangGraph's astream_events
         """
         if not self.agent:
             raise RuntimeError("Agent not initialized. Call initialize() first.")
         
         try:
-            # Stream the agent execution
-            async for chunk in self.agent.astream({"messages": [("user", message)]}):
-                yield chunk
+            async for event in self.agent.astream_events(
+                {"messages": [("user", message)]}, 
+                version="v2",
+                **kwargs
+            ):
+                yield event
                 
         except Exception as e:
-            self.logger.error(f"Error streaming agent: {e}")
+            self.logger.error(f"Error streaming events: {e}")
             raise
 
     async def cleanup(self):
@@ -212,6 +316,106 @@ class ReActAgent:
         if self.tool_registry:
             return self.tool_registry.get_tool_info()
         return {"total_count": 0, "tools": []}
+
+    async def astream_sse(self, message: str, **kwargs):
+        """
+        Stream the agent execution in Server-Sent Events format.
+        
+        클라이언트에서 EventSource로 직접 사용할 수 있는 SSE 형태로 스트리밍합니다.
+        웹 애플리케이션에서 실시간 AI 응답을 구현할 때 최적화된 형태입니다.
+        
+        Example usage (FastAPI):
+            @app.get("/stream")
+            async def stream_chat(message: str):
+                return StreamingResponse(
+                    agent.astream_sse(message),
+                    media_type="text/plain",
+                    headers={"Cache-Control": "no-cache", "Connection": "keep-alive"}
+                )
+        
+        Example usage (Client - JavaScript):
+            const eventSource = new EventSource('/stream?message=hello');
+            eventSource.onmessage = (event) => {
+                const chunk = JSON.parse(event.data);
+                if (chunk.type === 'content') {
+                    console.log(chunk.content);
+                } else if (chunk.type === 'tool_call') {
+                    console.log('Tool:', chunk.tool.name, chunk.tool.args);
+                } else if (chunk.type === 'tool_result') {
+                    console.log('Result:', chunk.result);
+                }
+            };
+        
+        Args:
+            message: User message to process
+            **kwargs: Additional arguments
+            
+        Yields:
+            str: SSE formatted strings ready for StreamingResponse
+        """
+        if not self.agent:
+            raise RuntimeError("Agent not initialized. Call initialize() first.")
+        
+        try:
+            from ..schemas.streaming import langraph_to_sse_stream
+            
+            # LangGraph 스트림을 SSE로 변환
+            async for sse_chunk in langraph_to_sse_stream(
+                self.agent.astream({"messages": [("user", message)]}, **kwargs)
+            ):
+                yield sse_chunk
+                
+        except Exception as e:
+            self.logger.error(f"Error streaming SSE: {e}")
+            # 에러도 SSE 형태로 전송
+            error_chunk = f'data: {{"type": "error", "content": "{str(e)}"}}\n\n'
+            yield error_chunk
+
+    async def astream_json_lines(self, message: str, **kwargs):
+        """
+        Stream the agent execution in JSON Lines format.
+        
+        각 줄이 JSON 객체인 NDJSON 형태로 스트리밍합니다.
+        SSE를 지원하지 않는 환경이나 배치 처리에 적합합니다.
+        
+        Example usage (FastAPI):
+            @app.get("/stream-json")
+            async def stream_json(message: str):
+                return StreamingResponse(
+                    agent.astream_json_lines(message),
+                    media_type="application/x-ndjson"
+                )
+        
+        Example usage (Client - Python):
+            async for line in response.aiter_lines():
+                if line:
+                    chunk = json.loads(line)
+                    print(f"{chunk['type']}: {chunk.get('content', '')}")
+        
+        Args:
+            message: User message to process
+            **kwargs: Additional arguments
+            
+        Yields:
+            str: JSON Lines formatted strings
+        """
+        if not self.agent:
+            raise RuntimeError("Agent not initialized. Call initialize() first.")
+        
+        try:
+            from ..schemas.streaming import langraph_to_json_lines_stream
+            
+            # LangGraph 스트림을 JSON Lines로 변환
+            async for json_line in langraph_to_json_lines_stream(
+                self.agent.astream({"messages": [("user", message)]}, **kwargs)
+            ):
+                yield json_line
+                
+        except Exception as e:
+            self.logger.error(f"Error streaming JSON Lines: {e}")
+            import json
+            error_line = f'{json.dumps({"type": "error", "content": str(e)})}\n'
+            yield error_line
 
 
 async def create_react_agent_from_config(config_path: str) -> ReActAgent:

@@ -13,6 +13,17 @@ class ChatMessage(BaseModel):
     content: str = Field(description="The content of the message")
 
 
+class ToolCall(BaseModel):
+    """Detailed information about a tool call."""
+
+    name: str = Field(description="Name of the tool that was called")
+    args: Dict[str, Any] = Field(
+        default_factory=dict, description="Arguments/parameters passed to the tool"
+    )
+    result: Any = Field(default=None, description="Result returned by the tool")
+    error: Optional[str] = Field(default=None, description="Error message if tool call failed")
+
+
 class AgentRequest(BaseModel):
     """Request model for agent interaction."""
 
@@ -23,8 +34,8 @@ class AgentResponse(BaseModel):
     """Response model for agent interaction."""
 
     response: str = Field(description="The agent's response message")
-    tools_used: List[str] = Field(
-        default_factory=list, description="List of tools used during the interaction"
+    tool_calls: List[ToolCall] = Field(
+        default_factory=list, description="Detailed information about tool calls made during the interaction"
     )
     metadata: Dict[str, Any] = Field(
         default_factory=dict, description="Additional metadata about the response"
@@ -36,8 +47,8 @@ class AgentStreamChunk(BaseModel):
 
     chunk: str = Field(description="The content chunk")
     is_final: bool = Field(description="Whether this is the final chunk")
-    tools_used: List[str] = Field(
-        default_factory=list, description="List of tools used during the interaction (populated in final chunk)"
+    tool_calls: List[ToolCall] = Field(
+        default_factory=list, description="Detailed information about tool calls (populated in final chunk)"
     )
     metadata: Dict[str, Any] = Field(
         default_factory=dict, description="Additional metadata about the chunk"
